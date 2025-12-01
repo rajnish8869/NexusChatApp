@@ -1,0 +1,8 @@
+{
+  "name": "NexusChat",
+  "description": "A comprehensive real-time messaging platform featuring text, media, voice/video calls, and AI-powered smart replies.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
