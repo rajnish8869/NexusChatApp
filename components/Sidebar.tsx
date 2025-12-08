@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { User, Chat, Story, CallLog, CallStatus, CallType } from '../types';
+import { User, Chat, Story, CallLog, CallStatus, CallType, UserSettings } from '../types';
 import { WALLPAPERS } from '../constants';
 
 interface SidebarProps {
@@ -13,6 +13,7 @@ interface SidebarProps {
   activeTab: 'chats' | 'status' | 'calls' | 'settings';
   currentTheme: 'light' | 'dark';
   currentWallpaper: string;
+  navPosition: 'top' | 'bottom';
   onTabChange: (tab: 'chats' | 'status' | 'calls' | 'settings') => void;
   onSelectChat: (chatId: string) => void;
   onCreateChat: (userId: string) => void;
@@ -24,9 +25,11 @@ interface SidebarProps {
   onAddStory: (type: 'text' | 'image' | 'video', content: string) => void;
   onToggleReadReceipts: () => void;
   onUnblockUser: (userId: string) => void;
+  onToggleNavPosition: () => void;
+  onUpdateSettings: (settings: Partial<UserSettings>) => void;
 }
 
-type SettingsView = 'main' | 'account' | 'privacy' | 'chats' | 'notifications' | 'storage' | 'help' | 'help-center' | 'contact-us' | 'terms' | 'app-info';
+type SettingsView = 'main' | 'account' | 'privacy' | 'chats' | 'notifications' | 'storage' | 'help' | 'app-info' | 'help-center' | 'contact-us' | 'terms';
 
 export const Sidebar: React.FC<SidebarProps> = ({ 
   currentUser, 
@@ -37,6 +40,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   activeTab,
   currentTheme,
   currentWallpaper,
+  navPosition,
   onTabChange,
   onSelectChat,
   users,
@@ -48,11 +52,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onClearChats,
   onAddStory,
   onToggleReadReceipts,
-  onUnblockUser
+  onUnblockUser,
+  onToggleNavPosition,
+  onUpdateSettings
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [settingsView, setSettingsView] = useState<SettingsView>('main');
   const [showArchived, setShowArchived] = useState(false);
+  const [showNewChatModal, setShowNewChatModal] = useState(false);
   const storyInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -107,16 +114,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
     </div>
   );
 
-  const Toggle = ({ label, checked, onChange }: { label: string, checked: boolean, onChange?: () => void }) => (
+  const Toggle = ({ label, checked, onChange, description }: { label: string, checked: boolean, onChange?: () => void, description?: string }) => (
     <div className="flex items-center justify-between py-3 cursor-pointer group" onClick={onChange}>
-      <span className="text-gray-700 dark:text-gray-200 group-hover:text-nexus-600 dark:group-hover:text-nexus-400 transition-colors font-medium">{label}</span>
-      <div className={`w-11 h-6 flex items-center rounded-full p-1 transition-colors duration-300 ${checked ? 'bg-nexus-500' : 'bg-gray-300 dark:bg-gray-600'}`}>
+      <div className="flex-1 pr-4">
+        <span className="text-gray-700 dark:text-gray-200 group-hover:text-nexus-600 dark:group-hover:text-nexus-400 transition-colors font-medium block">{label}</span>
+        {description && <span className="text-xs text-gray-500 dark:text-gray-400 mt-1 block">{description}</span>}
+      </div>
+      <div className={`w-11 h-6 shrink-0 flex items-center rounded-full p-1 transition-colors duration-300 ${checked ? 'bg-nexus-500' : 'bg-gray-300 dark:bg-gray-600'}`}>
         <div className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform duration-300 ${checked ? 'translate-x-5' : 'translate-x-0'}`}></div>
       </div>
     </div>
   );
 
-  // Helper for blocked user list
   const blockedList = users.filter(u => currentUser.blockedUsers.includes(u.id));
 
   const renderSettingsContent = () => {
@@ -141,57 +150,205 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   <input type="text" defaultValue={currentUser.name} className="w-full bg-gray-50 dark:bg-dark-input text-gray-900 dark:text-white rounded-xl px-4 py-3 focus:ring-2 focus:ring-nexus-500 focus:outline-none transition border border-gray-200 dark:border-gray-700" />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5">Bio</label>
-                  <input type="text" defaultValue={currentUser.bio} className="w-full bg-gray-50 dark:bg-dark-input text-gray-900 dark:text-white rounded-xl px-4 py-3 focus:ring-2 focus:ring-nexus-500 focus:outline-none transition border border-gray-200 dark:border-gray-700" />
+                  <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5">Email</label>
+                  <input type="text" defaultValue={currentUser.email} readOnly className="w-full bg-gray-100 dark:bg-dark-bg text-gray-500 dark:text-gray-400 rounded-xl px-4 py-3 border border-gray-200 dark:border-gray-700 cursor-not-allowed" />
                 </div>
                 <div>
-                   <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5">Email</label>
-                   <input type="email" defaultValue={currentUser.email} disabled className="w-full bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 rounded-xl px-4 py-3 cursor-not-allowed border border-transparent" />
+                  <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5">Bio</label>
+                  <textarea defaultValue={currentUser.bio} rows={3} className="w-full bg-gray-50 dark:bg-dark-input text-gray-900 dark:text-white rounded-xl px-4 py-3 focus:ring-2 focus:ring-nexus-500 focus:outline-none transition border border-gray-200 dark:border-gray-700" />
                 </div>
               </div>
+              <button className="w-full py-3 text-red-500 font-medium hover:bg-red-50 dark:hover:bg-red-900/10 rounded-xl transition">
+                  Delete My Account
+              </button>
             </div>
           </div>
         );
       case 'privacy':
-        return (
-          <div className="animate-pop-in px-4 pb-4">
-            <SettingsHeader title="Privacy" onBack={() => setSettingsView('main')} />
-            <div className="bg-white dark:bg-dark-hover rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-gray-700/50 space-y-4">
-               <div className="space-y-4">
-                 <div className="flex flex-col">
-                   <span className="text-gray-800 dark:text-gray-200 font-medium mb-1">Last Seen</span>
-                   <select className="bg-gray-50 dark:bg-dark-input rounded-lg p-2.5 text-sm text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-600 focus:ring-2 focus:ring-nexus-500 outline-none">
-                     <option>Everyone</option>
-                     <option>My Contacts</option>
-                     <option>Nobody</option>
-                   </select>
+          return (
+              <div className="animate-pop-in px-4 pb-4">
+                  <SettingsHeader title="Privacy" onBack={() => setSettingsView('main')} />
+                  <div className="bg-white dark:bg-dark-hover rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-gray-700/50 space-y-4">
+                      <div className="space-y-4 border-b border-gray-100 dark:border-gray-700 pb-4 mb-4">
+                          <h3 className="text-nexus-600 dark:text-nexus-400 text-xs font-bold uppercase tracking-wider">Visibility</h3>
+                          <div className="flex justify-between items-center">
+                             <span className="text-gray-700 dark:text-gray-200">Last Seen</span>
+                             <select 
+                               value={currentUser.settings?.privacy.lastSeen}
+                               onChange={(e) => onUpdateSettings({ privacy: { ...currentUser.settings!.privacy, lastSeen: e.target.value as any } })}
+                               className="bg-gray-50 dark:bg-dark-input text-gray-900 dark:text-white text-sm rounded-lg p-2 border border-gray-200 dark:border-gray-700 outline-none"
+                             >
+                                 <option value="everyone">Everyone</option>
+                                 <option value="contacts">Contacts</option>
+                                 <option value="nobody">Nobody</option>
+                             </select>
+                          </div>
+                      </div>
+
+                      <Toggle 
+                          label="Read Receipts" 
+                          description="If turned off, you won't send or receive Read receipts."
+                          checked={currentUser.settings?.privacy.readReceipts || false}
+                          onChange={onToggleReadReceipts} 
+                      />
+
+                      <div className="pt-4 border-t border-gray-100 dark:border-gray-700">
+                          <h3 className="text-nexus-600 dark:text-nexus-400 text-xs font-bold uppercase tracking-wider mb-3">Blocked Contacts ({blockedList.length})</h3>
+                          {blockedList.length === 0 ? (
+                              <p className="text-sm text-gray-400 italic">No blocked contacts.</p>
+                          ) : (
+                              <ul className="space-y-3">
+                                  {blockedList.map(user => (
+                                      <li key={user.id} className="flex items-center justify-between">
+                                          <div className="flex items-center space-x-3">
+                                              <img src={user.avatar} className="w-10 h-10 rounded-full" alt="" />
+                                              <span className="text-gray-900 dark:text-white font-medium">{user.name}</span>
+                                          </div>
+                                          <button onClick={() => onUnblockUser(user.id)} className="text-xs bg-gray-100 dark:bg-gray-700 px-3 py-1.5 rounded-full hover:bg-gray-200 dark:hover:bg-gray-600 transition">Unblock</button>
+                                      </li>
+                                  ))}
+                              </ul>
+                          )}
+                      </div>
+                  </div>
+              </div>
+          );
+      case 'notifications':
+          return (
+              <div className="animate-pop-in px-4 pb-4">
+                  <SettingsHeader title="Notifications" onBack={() => setSettingsView('main')} />
+                  <div className="bg-white dark:bg-dark-hover rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-gray-700/50 space-y-4">
+                      <Toggle 
+                          label="Conversation Tones" 
+                          description="Play sounds for incoming and outgoing messages."
+                          checked={currentUser.settings?.notifications.sound || false}
+                          onChange={() => onUpdateSettings({ notifications: { ...currentUser.settings!.notifications, sound: !currentUser.settings!.notifications.sound } })} 
+                      />
+                      <Toggle 
+                          label="Vibration" 
+                          checked={currentUser.settings?.notifications.vibration || false}
+                          onChange={() => onUpdateSettings({ notifications: { ...currentUser.settings!.notifications, vibration: !currentUser.settings!.notifications.vibration } })} 
+                      />
+                      <Toggle 
+                          label="Show Previews" 
+                          description="Preview message text inside new message notifications."
+                          checked={currentUser.settings?.notifications.preview || false}
+                          onChange={() => onUpdateSettings({ notifications: { ...currentUser.settings!.notifications, preview: !currentUser.settings!.notifications.preview } })} 
+                      />
+                  </div>
+              </div>
+          );
+      case 'storage':
+          return (
+             <div className="animate-pop-in px-4 pb-4">
+                 <SettingsHeader title="Storage & Data" onBack={() => setSettingsView('main')} />
+                 <div className="bg-white dark:bg-dark-hover rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-gray-700/50 space-y-6">
+                     <div>
+                         <h3 className="text-nexus-600 dark:text-nexus-400 text-xs font-bold uppercase tracking-wider mb-3">Network Usage</h3>
+                         <div className="flex items-center justify-between mb-2">
+                             <span className="text-gray-700 dark:text-gray-300">Usage</span>
+                             <span className="font-bold text-gray-900 dark:text-white">1.2 GB</span>
+                         </div>
+                         <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
+                             <div className="bg-nexus-500 h-2.5 rounded-full" style={{ width: '45%' }}></div>
+                         </div>
+                     </div>
+                     
+                     <div className="pt-4 border-t border-gray-100 dark:border-gray-700">
+                         <h3 className="text-nexus-600 dark:text-nexus-400 text-xs font-bold uppercase tracking-wider mb-3">Media Auto-Download</h3>
+                         <div className="space-y-3">
+                             {['Photos', 'Audio', 'Videos', 'Documents'].map(type => (
+                                 <label key={type} className="flex items-center space-x-3 cursor-pointer">
+                                     <input type="checkbox" defaultChecked className="form-checkbox text-nexus-600 rounded focus:ring-nexus-500 bg-gray-100 dark:bg-dark-input border-gray-300 dark:border-gray-600" />
+                                     <span className="text-gray-700 dark:text-gray-200">{type}</span>
+                                 </label>
+                             ))}
+                         </div>
+                     </div>
                  </div>
-               </div>
-               <div className="h-px bg-gray-100 dark:bg-gray-700 my-4"></div>
-               <Toggle 
-                  label="Read Receipts" 
-                  checked={currentUser.settings?.privacy.readReceipts || false} 
-                  onChange={onToggleReadReceipts} 
-               />
-               <div className="pt-4">
-                 <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">Blocked Contacts ({blockedList.length})</h3>
-                 {blockedList.length === 0 ? (
-                    <p className="text-sm text-gray-400 italic">No blocked contacts</p>
-                 ) : (
-                    <div className="space-y-2">
-                        {blockedList.map(u => (
-                            <div key={u.id} className="flex items-center justify-between p-2 bg-gray-50 dark:bg-dark-input rounded-lg">
-                                <span className="text-sm font-medium text-gray-800 dark:text-gray-200">{u.name}</span>
-                                <button onClick={() => onUnblockUser(u.id)} className="text-xs text-red-500 hover:text-red-600 font-semibold px-2 py-1 bg-red-50 dark:bg-red-900/20 rounded">Unblock</button>
-                            </div>
-                        ))}
-                    </div>
-                 )}
-               </div>
-            </div>
-          </div>
-        );
-      // ... Other settings cases omitted for brevity as they remain largely the same, but full implementation logic is preserved
+             </div>
+          );
+      case 'help':
+          return (
+              <div className="animate-pop-in px-4 pb-4">
+                  <SettingsHeader title="Help" onBack={() => setSettingsView('main')} />
+                  <div className="bg-white dark:bg-dark-hover rounded-2xl overflow-hidden shadow-sm border border-gray-100 dark:border-gray-700/50">
+                      {[
+                          { label: 'Help Center', view: 'help-center' }, 
+                          { label: 'Contact Us', view: 'contact-us' }, 
+                          { label: 'Terms and Privacy Policy', view: 'terms' }, 
+                          { label: 'App Info', view: 'app-info' }
+                      ].map((item, i) => (
+                          <button 
+                            key={i} 
+                            onClick={() => setSettingsView(item.view as SettingsView)}
+                            className={`w-full flex items-center justify-between p-4 hover:bg-gray-50 dark:hover:bg-gray-700 transition ${i !== 3 ? 'border-b border-gray-100 dark:border-gray-700' : ''}`}
+                          >
+                              <span className="text-gray-800 dark:text-gray-200 font-medium">{item.label}</span>
+                              <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                          </button>
+                      ))}
+                  </div>
+              </div>
+          );
+      case 'help-center':
+          return (
+              <div className="animate-pop-in px-4 pb-4">
+                  <SettingsHeader title="Help Center" onBack={() => setSettingsView('help')} />
+                  <div className="bg-white dark:bg-dark-hover rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-gray-700/50 space-y-4">
+                      <h3 className="font-bold text-lg text-gray-900 dark:text-white">How can we help?</h3>
+                      <input type="text" placeholder="Search for issues..." className="w-full bg-gray-50 dark:bg-dark-input border border-gray-200 dark:border-gray-700 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-nexus-500 outline-none" />
+                      <div className="space-y-2 pt-2">
+                        <p className="font-semibold text-nexus-600">Popular Topics</p>
+                        <ul className="list-disc pl-5 space-y-1 text-sm text-gray-600 dark:text-gray-300">
+                           <li>How to block a contact</li>
+                           <li>Changing privacy settings</li>
+                           <li>Backup and Restore</li>
+                           <li>Two-step verification</li>
+                        </ul>
+                      </div>
+                  </div>
+              </div>
+          );
+      case 'contact-us':
+          return (
+              <div className="animate-pop-in px-4 pb-4">
+                  <SettingsHeader title="Contact Us" onBack={() => setSettingsView('help')} />
+                  <div className="bg-white dark:bg-dark-hover rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-gray-700/50 space-y-4">
+                      <p className="text-gray-700 dark:text-gray-200">Have questions or feedback? We'd love to hear from you.</p>
+                      <textarea placeholder="Describe your issue..." rows={4} className="w-full bg-gray-50 dark:bg-dark-input border border-gray-200 dark:border-gray-700 rounded-xl px-4 py-3 focus:ring-2 focus:ring-nexus-500 outline-none"></textarea>
+                      <button onClick={() => { alert("Feedback sent!"); setSettingsView('help'); }} className="w-full py-3 bg-nexus-600 text-white font-bold rounded-xl shadow-md hover:bg-nexus-700 transition">Send Message</button>
+                      <p className="text-xs text-center text-gray-400 mt-2">Support email: support@nexus.chat</p>
+                  </div>
+              </div>
+          );
+       case 'terms':
+          return (
+              <div className="animate-pop-in px-4 pb-4">
+                  <SettingsHeader title="Terms & Privacy" onBack={() => setSettingsView('help')} />
+                  <div className="bg-white dark:bg-dark-hover rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-gray-700/50 space-y-4 h-[60vh] overflow-y-auto">
+                      <h3 className="font-bold text-gray-900 dark:text-white">Terms of Service</h3>
+                      <p className="text-sm text-gray-600 dark:text-gray-300">By using NexusChat, you agree to our terms. We provide a platform for real-time messaging...</p>
+                      <h3 className="font-bold text-gray-900 dark:text-white mt-4">Privacy Policy</h3>
+                      <p className="text-sm text-gray-600 dark:text-gray-300">Your privacy is important to us. We use end-to-end encryption for all messages...</p>
+                      <p className="text-sm text-gray-600 dark:text-gray-300">Last updated: Oct 2023</p>
+                  </div>
+              </div>
+          );
+      case 'app-info':
+          return (
+              <div className="animate-pop-in px-4 pb-4">
+                  <SettingsHeader title="App Info" onBack={() => setSettingsView('help')} />
+                  <div className="bg-white dark:bg-dark-hover rounded-2xl p-8 shadow-sm border border-gray-100 dark:border-gray-700/50 flex flex-col items-center text-center">
+                       <div className="w-24 h-24 bg-gradient-to-tr from-nexus-400 to-nexus-600 rounded-3xl rotate-3 mb-6 flex items-center justify-center shadow-lg">
+                          <svg className="w-12 h-12 text-white transform -rotate-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
+                       </div>
+                       <h2 className="text-2xl font-bold text-gray-900 dark:text-white">NexusChat</h2>
+                       <p className="text-gray-500 dark:text-gray-400 font-medium mb-6">Version 2.5.0 (Beta)</p>
+                       <p className="text-gray-400 text-sm">© 2024 Nexus Inc. All rights reserved.</p>
+                  </div>
+              </div>
+          );
       case 'chats':
         return (
           <div className="animate-pop-in px-4 pb-4">
@@ -203,6 +360,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
                        {currentTheme === 'light' ? <><span className="font-semibold">Light Mode</span><div className="w-3 h-3 bg-yellow-400 rounded-full shadow-sm ring-2 ring-white"></div></> : <><span className="font-semibold">Dark Mode</span><div className="w-3 h-3 bg-indigo-500 rounded-full shadow-sm ring-2 ring-indigo-300"></div></>}
                     </button>
                  </div>
+                 
+                 <div className="flex items-center justify-between">
+                    <span className="text-gray-800 dark:text-gray-200 font-medium">Navbar Position</span>
+                    <button onClick={onToggleNavPosition} className="text-sm font-semibold bg-gray-100 dark:bg-dark-input px-4 py-2 rounded-full text-nexus-600 dark:text-nexus-400 hover:bg-gray-200 dark:hover:bg-gray-600 transition">
+                       {navPosition === 'top' ? 'Top' : 'Bottom'}
+                    </button>
+                 </div>
+
                  <div>
                     <span className="text-gray-800 dark:text-gray-200 block mb-3 font-medium">Wallpaper</span>
                     <div className="flex space-x-3 overflow-x-auto pb-4 scrollbar-hide">
@@ -221,9 +386,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
         );
       default:
-        // Main Settings Menu
+        // Default View implementation similar to before...
         return (
           <div className="p-4 space-y-6 animate-pop-in">
+             {/* ... Account Card ... */}
             <div className="flex items-center space-x-4 mb-6 cursor-pointer bg-white dark:bg-dark-hover p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700/50 hover:shadow-md transition group" onClick={() => setSettingsView('account')}>
                <img src={currentUser.avatar} className="w-16 h-16 rounded-full object-cover border-2 border-nexus-100 dark:border-gray-600 group-hover:scale-105 transition-transform duration-300" />
                <div className="flex-1 min-w-0">
@@ -233,6 +399,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                </div>
                <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
             </div>
+            
             <div className="space-y-2">
               {[
                 { id: 'account', name: 'Account', icon: 'M16 7a4 4 0 11-8 0 4 4 0 018 0z' },
@@ -256,10 +423,26 @@ export const Sidebar: React.FC<SidebarProps> = ({
     }
   };
 
+  const TabBar = () => (
+    <div className="px-5 mb-2 shrink-0 z-20">
+       <div className="flex bg-gray-200/60 dark:bg-gray-800/60 p-1.5 rounded-xl">
+          {[
+            { id: 'chats', label: 'Chats' },
+            { id: 'status', label: 'Status' },
+            { id: 'calls', label: 'Calls' }
+          ].map(tab => (
+            <button key={tab.id} onClick={() => onTabChange(tab.id as any)} className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-all duration-200 ${activeTab === tab.id ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}`}>
+              {tab.label}
+            </button>
+          ))}
+       </div>
+    </div>
+  );
+
   return (
     <div className="h-full flex flex-col bg-gray-50 dark:bg-dark-bg border-r border-gray-200 dark:border-gray-700 w-full md:w-full transition-colors duration-300">
       {/* Header */}
-      <div className="p-5 flex justify-between items-center shrink-0">
+      <div className="p-5 flex justify-between items-center shrink-0 bg-gray-50 dark:bg-dark-bg z-20">
         <div className="flex items-center space-x-3" onClick={() => { onTabChange('settings'); setSettingsView('main'); }}>
           <div className="relative cursor-pointer group">
              <img src={currentUser.avatar} alt="Me" className="w-10 h-10 rounded-full border-2 border-white dark:border-gray-700 shadow-sm group-hover:scale-105 transition-transform" />
@@ -274,24 +457,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
       </div>
 
-      {/* Modern Segmented Tabs */}
-      <div className="px-5 mb-2 shrink-0">
-         <div className="flex bg-gray-200/60 dark:bg-gray-800/60 p-1.5 rounded-xl">
-            {[
-              { id: 'chats', label: 'Chats' },
-              { id: 'status', label: 'Status' },
-              { id: 'calls', label: 'Calls' }
-            ].map(tab => (
-              <button key={tab.id} onClick={() => onTabChange(tab.id as any)} className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-all duration-200 ${activeTab === tab.id ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}`}>
-                {tab.label}
-              </button>
-            ))}
-         </div>
-      </div>
+      {navPosition === 'top' && <TabBar />}
 
       {/* Content Area */}
       <div className="flex-1 overflow-y-auto overflow-x-hidden scrollbar-hide px-3 pb-4">
-        {/* CHATS TAB */}
         {activeTab === 'chats' && (
           <>
             <div className="px-2 mb-4 sticky top-0 z-10 pt-2 bg-gray-50 dark:bg-dark-bg pb-2">
@@ -302,7 +471,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     </span>
                     <input type="text" placeholder="Search" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-dark-hover border border-gray-100 dark:border-gray-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-nexus-400 text-gray-800 dark:text-gray-100 transition-all shadow-sm focus:shadow-md" />
                   </div>
-                  <button className="p-2.5 bg-white dark:bg-dark-hover border border-gray-100 dark:border-gray-700 rounded-xl text-nexus-600 dark:text-nexus-400 hover:shadow-md transition" title="New Group">
+                  <button onClick={() => setShowNewChatModal(true)} className="p-2.5 bg-white dark:bg-dark-hover border border-gray-100 dark:border-gray-700 rounded-xl text-nexus-600 dark:text-nexus-400 hover:shadow-md transition" title="New Chat">
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
                   </button>
               </div>
@@ -355,7 +524,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </>
         )}
         
-        {/* OTHER TABS (STATUS, CALLS, SETTINGS) rendered same as before */}
+        {/* Status Tab */}
         {activeTab === 'status' && (
           <div className="p-2 space-y-6">
             <div className="flex items-center space-x-4 cursor-pointer bg-white dark:bg-dark-hover p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700/50 hover:shadow-md transition group" onClick={() => storyInputRef.current?.click()}>
@@ -394,6 +563,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
         )}
 
+        {/* Calls Tab */}
         {activeTab === 'calls' && (
           <div className="px-2">
              <ul className="space-y-2">
@@ -420,9 +590,43 @@ export const Sidebar: React.FC<SidebarProps> = ({
              </ul>
           </div>
         )}
-        
+
         {activeTab === 'settings' && renderSettingsContent()}
       </div>
+
+      {navPosition === 'bottom' && <TabBar />}
+
+      {/* New Chat Modal */}
+      {showNewChatModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/60 backdrop-blur-sm p-4 animate-fade-in">
+            <div className="bg-white dark:bg-dark-panel rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden flex flex-col max-h-[80vh] border border-gray-200 dark:border-gray-700">
+                <div className="p-5 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-dark-hover">
+                    <h3 className="font-bold text-lg text-gray-900 dark:text-white">Start New Chat</h3>
+                    <button onClick={() => setShowNewChatModal(false)} className="p-2 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-full transition text-gray-500">
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                    </button>
+                </div>
+                <div className="overflow-y-auto flex-1 p-2">
+                    {users.filter(u => u.id !== currentUser.id).map(user => (
+                        <button 
+                            key={user.id}
+                            onClick={() => { onCreateChat(user.id); setShowNewChatModal(false); }}
+                            className="w-full p-3 flex items-center space-x-4 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-2xl transition group"
+                        >
+                            <img src={user.avatar} className="w-12 h-12 rounded-full border border-gray-100 dark:border-gray-600 object-cover" alt="" />
+                            <div className="text-left">
+                                <p className="font-semibold text-gray-900 dark:text-white">{user.name}</p>
+                                <p className="text-sm text-gray-500 dark:text-gray-400">{user.email}</p>
+                            </div>
+                        </button>
+                    ))}
+                    {users.length <= 1 && (
+                      <div className="p-4 text-center text-gray-500 dark:text-gray-400">No other contacts found.</div>
+                    )}
+                </div>
+            </div>
+        </div>
+      )}
     </div>
   );
 };
