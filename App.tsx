@@ -6,7 +6,7 @@ import { CallModal } from './components/CallModal';
 import { StoryViewer } from './components/StoryViewer';
 import { ImageViewer } from './components/ImageViewer';
 import { CURRENT_USER, INITIAL_CHATS, MOCK_USERS, MOCK_STORIES, MOCK_CALL_LOGS, DEFAULT_WALLPAPER } from './constants';
-import { Chat, MessageType, MessageStatus, CallType, User, Story, CallLog, Message } from './types';
+import { Chat, MessageType, MessageStatus, CallType, User, Story, CallLog, Message, UserSettings } from './types';
 
 type AuthState = 'login' | 'app';
 
@@ -20,6 +20,7 @@ const App: React.FC = () => {
   const [sidebarTab, setSidebarTab] = useState<'chats' | 'status' | 'calls' | 'settings'>('chats');
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const [wallpaper, setWallpaper] = useState<string>(DEFAULT_WALLPAPER);
+  const [navPosition, setNavPosition] = useState<'top' | 'bottom'>('bottom');
   const [viewingImage, setViewingImage] = useState<string | null>(null);
   
   const [stories, setStories] = useState<Story[]>(MOCK_STORIES);
@@ -42,10 +43,14 @@ const App: React.FC = () => {
 
   const activeChat = chats.find(c => c.id === activeChatId) || null;
 
-  const handleSendMessage = (text: string, type: MessageType, mediaUrl?: string, replyToId?: string, pollOptions?: string[]) => {
-    if (!activeChatId) return;
+  const handleSendMessage = (text: string, type: MessageType, mediaUrl?: string, replyToId?: string, pollOptions?: string[], targetChatId?: string) => {
+    const chatId = targetChatId || activeChatId;
+    if (!chatId) return;
+    
+    // Find the chat object to get participants for blocking check
+    const targetChat = chats.find(c => c.id === chatId);
+    const partner = targetChat?.participants.find(p => p.id !== currentUser.id);
 
-    const partner = activeChat?.participants.find(p => p.id !== currentUser.id);
     if (partner && currentUser.blockedUsers.includes(partner.id)) {
         alert(`You have blocked ${partner.name}. Unblock to send messages.`);
         return;
@@ -70,7 +75,7 @@ const App: React.FC = () => {
     };
 
     setChats(prevChats => prevChats.map(chat => {
-      if (chat.id === activeChatId) {
+      if (chat.id === chatId) {
         return {
           ...chat,
           messages: [...chat.messages, newMessage],
@@ -90,7 +95,7 @@ const App: React.FC = () => {
 
     setTimeout(() => {
        setChats(prev => prev.map(c => 
-         c.id === activeChatId ? {
+         c.id === chatId ? {
            ...c, messages: c.messages.map(m => m.id === newMessage.id ? { ...m, status: MessageStatus.DELIVERED } : m)
          } : c
        ));
@@ -99,7 +104,7 @@ const App: React.FC = () => {
     if (currentUser.settings?.privacy.readReceipts) {
       setTimeout(() => {
          setChats(prev => prev.map(c => 
-           c.id === activeChatId ? {
+           c.id === chatId ? {
              ...c, messages: c.messages.map(m => m.id === newMessage.id ? { ...m, status: MessageStatus.READ } : m)
            } : c
          ));
@@ -107,7 +112,7 @@ const App: React.FC = () => {
     }
 
     // Auto-reply unless it's a poll or self-chat
-    if (activeChat?.participants.length && activeChat.participants.length > 0) {
+    if (targetChat?.participants.length && targetChat.participants.length > 0 && !targetChatId) {
         setTimeout(() => {
             setPartnerTyping(true);
         }, 2000);
@@ -116,7 +121,7 @@ const App: React.FC = () => {
           setPartnerTyping(false);
           const responseMsg: Message = {
             id: `m-r-${Date.now()}`,
-            senderId: activeChat?.participants.find(p => p.id !== currentUser.id)?.id || 'unknown',
+            senderId: targetChat?.participants.find(p => p.id !== currentUser.id)?.id || 'unknown',
             content: type === MessageType.AUDIO ? "Can't listen right now." : "Interesting!",
             type: MessageType.TEXT,
             timestamp: new Date(),
@@ -126,7 +131,7 @@ const App: React.FC = () => {
           };
 
           setChats(prevChats => prevChats.map(chat => {
-            if (chat.id === activeChatId) {
+            if (chat.id === chatId) {
               return {
                  ...chat,
                  messages: [...chat.messages, responseMsg],
@@ -138,6 +143,38 @@ const App: React.FC = () => {
           }));
         }, 4500);
     }
+  };
+
+  const handleStoryReply = (storyId: string, text: string) => {
+      const story = stories.find(s => s.id === storyId);
+      if (!story) return;
+
+      // Find chat with this user
+      let chat = chats.find(c => c.participants.some(p => p.id === story.userId));
+      
+      if (!chat) {
+         // Create new chat if not exists
+         const user = MOCK_USERS.find(u => u.id === story.userId);
+         if (!user) return;
+         const newChat: Chat = {
+            id: `c-${Date.now()}`,
+            type: 'individual',
+            participants: [user],
+            messages: [],
+            unreadCount: 0,
+            pinned: false,
+            archived: false,
+            muted: false
+         };
+         setChats(prev => [newChat, ...prev]);
+         chat = newChat;
+      }
+      
+      // Send message
+      handleSendMessage(`Replying to story: ${text}`, MessageType.TEXT, undefined, undefined, undefined, chat.id);
+      
+      // If we weren't in that chat, don't navigate, just notify (optional). 
+      // User stays in story view or closes it.
   };
 
   const handleReaction = (chatId: string, messageId: string, emoji: string) => {
@@ -243,8 +280,6 @@ const App: React.FC = () => {
   };
 
   const handleCreateChat = (userId: string) => {
-    // Check if it's a new Group (mock logic for now, usually would involve selecting multiple)
-    // For this demo, selecting a user just creates/opens a chat
     const existing = chats.find(c => c.participants.some(p => p.id === userId));
     if (existing) {
       handleSelectChat(existing.id);
@@ -343,12 +378,35 @@ const App: React.FC = () => {
       setChats(prev => prev.map(c => c.id === activeChatId ? { ...c, muted: !c.muted } : c));
   };
 
+  const handleToggleEphemeral = () => {
+      if (!activeChatId) return;
+      setChats(prev => prev.map(c => c.id === activeChatId ? { ...c, ephemeralMode: !c.ephemeralMode } : c));
+  };
+
+  const handleArchiveChat = () => {
+      if (!activeChatId) return;
+      setChats(prev => prev.map(c => c.id === activeChatId ? { ...c, archived: !c.archived } : c));
+      setIsMobileListVisible(true);
+      setActiveChatId(null);
+  };
+
   const handleBlockUser = (userId: string) => {
-      if (confirm("Are you sure you want to block this user?")) {
-        setCurrentUser(prev => ({
-            ...prev,
-            blockedUsers: [...prev.blockedUsers, userId]
-        }));
+      const isBlocked = currentUser.blockedUsers.includes(userId);
+      if (isBlocked) {
+          // Unblock
+          setCurrentUser(prev => ({
+              ...prev,
+              blockedUsers: prev.blockedUsers.filter(id => id !== userId)
+          }));
+      } else {
+          // Block
+          if (confirm("Are you sure you want to block this user?")) {
+            setCurrentUser(prev => ({
+                ...prev,
+                blockedUsers: [...prev.blockedUsers, userId]
+            }));
+            setPartnerTyping(false); // Stop typing if blocked
+          }
       }
   };
 
@@ -360,20 +418,30 @@ const App: React.FC = () => {
   };
 
   const handleReportUser = (userId: string) => {
-      alert("User reported to support.");
+      if(confirm("Report this user for spam or inappropriate content?")) {
+        alert("User reported to support.");
+      }
   };
 
-  const handleToggleReadReceipts = () => {
+  const handleUpdateSettings = (newSettings: Partial<UserSettings>) => {
       setCurrentUser(prev => ({
           ...prev,
           settings: {
               ...prev.settings!,
-              privacy: {
-                  ...prev.settings!.privacy,
-                  readReceipts: !prev.settings!.privacy.readReceipts
-              }
+              ...newSettings
           }
       }));
+  };
+
+  const handleToggleReadReceipts = () => {
+      if (currentUser.settings) {
+          handleUpdateSettings({
+              privacy: {
+                  ...currentUser.settings.privacy,
+                  readReceipts: !currentUser.settings.privacy.readReceipts
+              }
+          });
+      }
   };
 
   if (authState === 'login') {
@@ -411,8 +479,8 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-gray-50 dark:bg-dark-bg font-sans transition-colors duration-300">
-      <div className={`${isMobileListVisible ? 'block' : 'hidden'} md:block h-full z-20 w-full md:w-[400px] border-r border-gray-200 dark:border-gray-700 bg-white dark:bg-dark-panel flex-shrink-0`}>
+    <div className="flex h-[100dvh] w-full overflow-hidden bg-gray-50 dark:bg-dark-bg font-sans transition-colors duration-300">
+      <div className={`${isMobileListVisible ? 'flex' : 'hidden'} md:flex flex-col h-full z-20 w-full md:w-[400px] border-r border-gray-200 dark:border-gray-700 bg-white dark:bg-dark-panel flex-shrink-0`}>
         <Sidebar 
           currentUser={currentUser}
           chats={chats}
@@ -422,6 +490,7 @@ const App: React.FC = () => {
           activeTab={sidebarTab}
           currentTheme={theme}
           currentWallpaper={wallpaper}
+          navPosition={navPosition}
           onTabChange={setSidebarTab}
           onSelectChat={handleSelectChat}
           users={MOCK_USERS}
@@ -434,16 +503,18 @@ const App: React.FC = () => {
           onAddStory={handleAddStory}
           onToggleReadReceipts={handleToggleReadReceipts}
           onUnblockUser={handleUnblockUser}
+          onToggleNavPosition={() => setNavPosition(prev => prev === 'top' ? 'bottom' : 'top')}
+          onUpdateSettings={handleUpdateSettings}
         />
       </div>
 
-      <div className={`flex-1 flex flex-col h-full relative overflow-hidden ${!isMobileListVisible ? 'block' : 'hidden md:flex'}`}>
+      <div className={`flex-1 flex flex-col h-full relative overflow-hidden ${!isMobileListVisible ? 'flex' : 'hidden md:flex'}`}>
         <ChatWindow 
           chat={activeChat}
           currentUser={currentUser}
           partnerTyping={partnerTyping}
           wallpaper={wallpaper}
-          onSendMessage={handleSendMessage}
+          onSendMessage={(text, type, mediaUrl, replyToId, pollOptions) => handleSendMessage(text, type, mediaUrl, replyToId, pollOptions)}
           onBack={() => setIsMobileListVisible(true)}
           onStartCall={(type) => handleStartCall(null, type)}
           onReact={(msgId, emoji) => activeChatId && handleReaction(activeChatId, msgId, emoji)}
@@ -453,10 +524,12 @@ const App: React.FC = () => {
           onStar={handleToggleStar}
           onPin={handlePinMessage}
           onMute={handleToggleMute}
+          onArchive={handleArchiveChat}
           onBlock={handleBlockUser}
           onReport={handleReportUser}
           onViewImage={setViewingImage}
           onVotePoll={handleVotePoll}
+          onToggleEphemeral={handleToggleEphemeral}
         />
       </div>
 
@@ -475,6 +548,7 @@ const App: React.FC = () => {
           initialStoryId={viewingStoryId}
           users={MOCK_USERS}
           onClose={() => setViewingStoryId(null)}
+          onReply={handleStoryReply}
         />
       )}
 

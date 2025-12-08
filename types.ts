@@ -31,6 +31,7 @@ export interface UserSettings {
   };
   theme: 'light' | 'dark' | 'system';
   wallpaper: string;
+  navPosition: 'top' | 'bottom'; // New setting
 }
 
 export interface User {
@@ -42,8 +43,8 @@ export interface User {
   lastSeen: Date;
   bio?: string;
   phoneNumber?: string;
-  blockedUsers: string[]; // List of blocked User IDs
-  settings?: UserSettings; // Optional for other users, required for current user
+  blockedUsers: string[]; 
+  settings?: UserSettings; 
 }
 
 export interface Reaction {
@@ -55,17 +56,17 @@ export interface Reaction {
 export interface PollOption {
   id: string;
   text: string;
-  votes: string[]; // List of User IDs who voted
+  votes: string[]; 
 }
 
 export interface Message {
   id: string;
   senderId: string;
-  content: string; // Text content, File Name, or Poll Question
+  content: string; 
   type: MessageType;
   timestamp: Date;
   status: MessageStatus;
-  mediaUrl?: string; // For images, videos, audio
+  mediaUrl?: string; 
   fileSize?: string;
   location?: { lat: number; lng: number; address?: string };
   reactions: Reaction[];
@@ -74,7 +75,7 @@ export interface Message {
   isEdited?: boolean;
   isDeleted?: boolean;
   isStarred?: boolean;
-  pollOptions?: PollOption[]; // New field for polls
+  pollOptions?: PollOption[]; 
 }
 
 export interface Chat {
@@ -89,17 +90,18 @@ export interface Chat {
   muted?: boolean;
   muteUntil?: Date | null;
   wallpaper?: string;
-  pinnedMessageId?: string; // New field
+  pinnedMessageId?: string;
+  ephemeralMode?: boolean; // New feature
 }
 
 export interface Story {
   id: string;
   userId: string;
   type: 'image' | 'video' | 'text';
-  content: string; // URL or text
-  background?: string; // For text stories
+  content: string; 
+  background?: string; 
   timestamp: Date;
-  viewers: User[]; // List of users who viewed
+  viewers: User[]; 
   expiresAt: Date;
 }
 
@@ -114,16 +116,16 @@ export enum CallStatus {
   OUTGOING = 'outgoing',
   ACCEPTED = 'accepted',
   REJECTED = 'rejected',
-  ONGOING = 'ongoing', // For active calls UI
+  ONGOING = 'ongoing', 
   RINGING = 'ringing'
 }
 
 export interface CallLog {
   id: string;
-  userId: string; // The other participant
+  userId: string; 
   type: CallType;
   direction: 'incoming' | 'outgoing';
   status: CallStatus;
   timestamp: Date;
-  duration?: number; // Seconds
+  duration?: number; 
 }

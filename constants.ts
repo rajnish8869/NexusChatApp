@@ -5,11 +5,11 @@ export const DEFAULT_WALLPAPER = "https://images.unsplash.com/photo-1554034483-0
 
 export const WALLPAPERS = [
   DEFAULT_WALLPAPER,
-  "https://images.unsplash.com/photo-1557683316-973673baf926?q=80&w=2029&auto=format&fit=crop", // Dark Gradient
-  "https://images.unsplash.com/photo-1579546929518-9e396f3cc809?q=80&w=2070&auto=format&fit=crop", // Light Gradient
-  "https://images.unsplash.com/photo-1506744038136-46273834b3fb?q=80&w=2070&auto=format&fit=crop", // Nature
-  "https://images.unsplash.com/photo-1451187580459-43490279c0fa?q=80&w=2072&auto=format&fit=crop", // Space
-  "https://www.transparenttextures.com/patterns/cubes.png" // Pattern (requires bg color)
+  "https://images.unsplash.com/photo-1557683316-973673baf926?q=80&w=2029&auto=format&fit=crop", 
+  "https://images.unsplash.com/photo-1579546929518-9e396f3cc809?q=80&w=2070&auto=format&fit=crop", 
+  "https://images.unsplash.com/photo-1506744038136-46273834b3fb?q=80&w=2070&auto=format&fit=crop", 
+  "https://images.unsplash.com/photo-1451187580459-43490279c0fa?q=80&w=2072&auto=format&fit=crop", 
+  "https://www.transparenttextures.com/patterns/cubes.png" 
 ];
 
 export const CURRENT_USER: User = {
@@ -26,7 +26,8 @@ export const CURRENT_USER: User = {
     privacy: { lastSeen: 'everyone', profilePhoto: 'everyone', readReceipts: true },
     notifications: { sound: true, vibration: true, preview: true },
     theme: 'light',
-    wallpaper: DEFAULT_WALLPAPER
+    wallpaper: DEFAULT_WALLPAPER,
+    navPosition: 'bottom' // Default to bottom for mobile-feel
   }
 };
 
@@ -72,7 +73,7 @@ export const MOCK_STORIES: Story[] = [
     userId: 'u1',
     type: 'image',
     content: 'https://images.unsplash.com/photo-1516035069371-29a1b244cc32?ixlib=rb-1.2.1&auto=format&fit=crop&w=1000&q=80',
-    timestamp: new Date(Date.now() - 1000 * 60 * 60 * 2), // 2 hours ago
+    timestamp: new Date(Date.now() - 1000 * 60 * 60 * 2), 
     expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 22),
     viewers: []
   },
@@ -112,7 +113,7 @@ export const MOCK_CALL_LOGS: CallLog[] = [
     type: CallType.VIDEO,
     direction: 'outgoing',
     status: CallStatus.ACCEPTED,
-    duration: 340, // 5m 40s
+    duration: 340, 
     timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24)
   }
 ];
@@ -127,6 +128,7 @@ export const INITIAL_CHATS: Chat[] = [
     archived: false,
     muted: false,
     pinnedMessageId: 'm3',
+    ephemeralMode: false,
     messages: [
       {
         id: 'm1',
@@ -210,7 +212,7 @@ export const INITIAL_CHATS: Chat[] = [
         senderId: 'me',
         content: 'Voice note',
         type: MessageType.AUDIO,
-        mediaUrl: 'mock_audio.mp3', // Placeholder
+        mediaUrl: 'mock_audio.mp3', 
         timestamp: new Date(Date.now() - 1000 * 60 * 60 * 1.9),
         status: MessageStatus.READ,
         reactions: [],
