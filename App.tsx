@@ -441,7 +441,7 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className={`flex h-[100dvh] w-full overflow-hidden font-sans transition-all duration-500 ${getContainerStyles()}`}>
+    <div className={`flex h-[100dvh] w-screen overflow-hidden overscroll-none font-sans transition-all duration-500 ${getContainerStyles()}`}>
       
       {/* Mobile Sidebar Logic */}
       <div className={`${isMobileListVisible ? 'flex' : 'hidden'} md:flex flex-col h-full z-20 w-full md:w-[380px] lg:w-[420px] flex-shrink-0 transition-all duration-300`}>

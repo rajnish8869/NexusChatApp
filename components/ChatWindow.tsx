@@ -52,8 +52,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   // Search State
   const [isSearching, setIsSearching] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [searchResultCount, setSearchResultCount] = useState(0);
-  const [currentSearchIndex, setCurrentSearchIndex] = useState(0);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -178,9 +176,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     );
   };
 
-  // Render Helpers
   const renderQuickActions = (msg: Message, isMe: boolean) => (
-      <div className={`absolute -top-10 ${isMe ? 'right-0' : 'left-0'} flex items-center space-x-1 p-1.5 rounded-full shadow-xl z-20 transition-all duration-200 animate-pop-in ${appTheme === 'pastel' ? 'bg-white text-gray-600' : 'bg-gray-800 text-gray-200 border border-white/10'}`}>
+      <div className={`absolute -top-10 ${isMe ? 'right-0' : 'left-0'} flex items-center space-x-1 p-1.5 rounded-full shadow-xl z-50 transition-all duration-200 animate-pop-in ${appTheme === 'pastel' ? 'bg-white text-gray-600' : 'bg-gray-800 text-gray-200 border border-white/10'}`}>
           <button onClick={() => onReact(msg.id, '❤️')} className="hover:scale-125 transition p-1">❤️</button>
           <button onClick={() => onReact(msg.id, '😂')} className="hover:scale-125 transition p-1">😂</button>
           <button onClick={() => onReact(msg.id, '👍')} className="hover:scale-125 transition p-1">👍</button>
@@ -200,7 +197,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     <div className="flex h-full relative overflow-hidden bg-gray-900">
         
         {/* Main Chat Area */}
-        <div className="flex-1 flex flex-col relative h-full">
+        <div className="flex-1 flex flex-col relative h-full w-full">
             {/* Background */}
             <div className="absolute inset-0 z-0 bg-cover bg-center transition-all duration-700" 
                 style={{ 
@@ -217,7 +214,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             }`}></div>
 
             {/* Floating Header (or Search Bar) */}
-            <div className={`shrink-0 z-30 px-6 py-3 flex justify-between items-center transition-all duration-300 ${getHeaderClass()} m-4 rounded-[24px]`}>
+            <div className={`shrink-0 z-40 px-6 py-3 flex justify-between items-center transition-all duration-300 ${getHeaderClass()} m-4 rounded-[24px]`}>
                 {isSearching ? (
                    <div className="flex-1 flex items-center space-x-3 w-full">
                        <button onClick={() => { setIsSearching(false); setSearchTerm(''); }} className="p-2 rounded-full hover:bg-black/10 text-gray-500">
@@ -271,7 +268,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                 )}
             </div>
 
-            {/* Pinned Message Banner - Static in Flex Flow */}
+            {/* Pinned Message Banner */}
             {pinnedMessage && !isSearching && (
                 <div className={`mx-4 mb-2 shrink-0 z-20 flex items-center p-2 rounded-xl shadow-lg cursor-pointer animate-slide-up ${appTheme === 'pastel' ? 'bg-white/90 text-gray-800' : 'bg-gray-800/90 text-white backdrop-blur-md border border-white/10'}`}>
                     <div className="pl-2 border-l-4 border-emerald-500 mr-3">
@@ -283,19 +280,16 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                 </div>
             )}
 
-            {/* Messages Area */}
-            <div className="flex-1 overflow-y-auto p-4 z-10 scrollbar-hide space-y-4" onClick={() => { setShowAttachMenu(false); setHoveredMessageId(null); }}>
+            {/* Messages Area - Fixed Padding/Margins */}
+            <div className="flex-1 overflow-y-auto px-4 z-10 scrollbar-hide space-y-4 pb-4 w-full box-border" onClick={() => { setShowAttachMenu(false); setHoveredMessageId(null); }}>
                 {chat.messages.map((msg, idx) => {
                     const isMe = msg.senderId === currentUser.id;
                     const isHovered = hoveredMessageId === msg.id;
                     const showTail = !chat.messages[idx + 1] || chat.messages[idx + 1].senderId !== msg.senderId;
                     
-                    // Logic to find replied message content - SAFE LOOKUP
-                    // Crucial fix: The replied message might exist in the chat even if the status update re-rendered the parent
                     const repliedMsg = msg.replyToId ? chat.messages.find(m => m.id === msg.replyToId) : null;
                     const repliedSender = repliedMsg ? (repliedMsg.senderId === currentUser.id ? 'You' : (chat.participants.find(p => p.id === repliedMsg.senderId)?.name || 'User')) : 'Unknown';
 
-                    // Search filtering visual
                     if (searchTerm && !msg.content.toLowerCase().includes(searchTerm.toLowerCase())) {
                         // Optional visual dimming
                     }
@@ -396,7 +390,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
             {/* Replying Preview Banner */}
             {replyingTo && (
-                <div className={`mx-4 mb-2 p-3 rounded-xl flex justify-between items-center animate-slide-up ${isPastel ? 'bg-white shadow-lg' : 'bg-gray-800/90 border border-gray-700'}`}>
+                <div className={`mx-4 mb-2 p-3 rounded-xl flex justify-between items-center animate-slide-up z-20 ${isPastel ? 'bg-white shadow-lg' : 'bg-gray-800/90 border border-gray-700'}`}>
                     <div className="flex-1 border-l-4 border-emerald-500 pl-3">
                         <p className={`text-xs font-bold ${isPastel ? 'text-emerald-600' : 'text-emerald-400'}`}>Replying to {replyingTo.senderId === currentUser.id ? 'yourself' : (partner?.name || 'User')}</p>
                         <p className={`text-sm truncate ${isPastel ? 'text-gray-600' : 'text-gray-300'}`}>{replyingTo.type === MessageType.IMAGE ? '📷 Image' : replyingTo.content}</p>
@@ -405,11 +399,11 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                 </div>
             )}
 
-            {/* Input Area */}
+            {/* Input Area - items-end for vertical alignment of multi-line text */}
             {isBlocked ? (
                 <div className="p-4 bg-gray-900 text-center text-gray-400 text-sm">You have blocked this contact. Unblock to send messages.</div>
             ) : (
-                <div className="p-2 md:p-4 z-20 shrink-0">
+                <div className="p-2 md:p-4 z-20 shrink-0 pb-safe">
                     {showPollCreator && (
                         <div className={`mb-4 p-4 rounded-2xl animate-slide-up ${isPastel ? 'bg-white shadow-xl' : 'bg-gray-800 border border-gray-700'}`}>
                             <div className="flex justify-between items-center mb-4">
@@ -429,8 +423,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                         </div>
                     )}
 
-                    <div className={`flex items-center space-x-2 p-1.5 rounded-[30px] shadow-2xl transition-all ${getInputClass()}`}>
-                        <div className="flex items-center pb-0 pl-2">
+                    <div className={`flex items-end space-x-2 p-1.5 rounded-[26px] shadow-2xl transition-all ${getInputClass()}`}>
+                        <div className="flex items-center pb-1 pl-2">
                             <button onClick={() => setShowAttachMenu(!showAttachMenu)} className={`p-2 rounded-full transition ${isPastel ? 'hover:bg-gray-100 text-gray-400' : 'hover:bg-white/10 text-gray-400'}`}>
                                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
                             </button>
@@ -450,7 +444,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                         </div>
 
                         {/* Input Field Wrapper - min-w-0 prevents flex overflow on mobile */}
-                        <div className="flex-1 min-w-0 py-2">
+                        <div className="flex-1 min-w-0 py-3">
                             <textarea 
                                 value={inputValue}
                                 onChange={(e) => setInputValue(e.target.value)}
@@ -467,7 +461,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                             />
                         </div>
 
-                        <div className="pr-1">
+                        <div className="pr-1 pb-1">
                             {inputValue.trim() ? (
                                 <button onClick={handleSendText} className={`p-3 rounded-full text-white shadow-lg transform transition active:scale-95 bg-gradient-to-r from-emerald-500 to-cyan-500`}>
                                     <svg className="w-5 h-5 translate-x-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 19l9-2-9-18-9 18 9-2zm0 0v-8" /></svg>
