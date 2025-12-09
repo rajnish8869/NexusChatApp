@@ -2,6 +2,7 @@
 import React, { useState, useRef } from 'react';
 import { User, Chat, Story, CallLog, CallStatus, CallType, UserSettings, AppTheme, ChatFolder } from '../types';
 import { WALLPAPERS } from '../constants';
+import { PinModal } from './PinModal';
 
 interface SidebarProps {
   currentUser: User;
@@ -44,6 +45,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [activeFolder, setActiveFolder] = useState<ChatFolder>('all');
   const [isLockedFolderOpen, setIsLockedFolderOpen] = useState(false);
+  const [showPinModal, setShowPinModal] = useState(false);
 
   // Dynamic Styles based on Theme
   const getPanelClass = () => {
@@ -73,17 +75,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
           if (isLockedFolderOpen) {
               setActiveFolder(folder);
           } else {
-              const pin = prompt("Enter PIN to access locked chats (1234):");
-              if (pin === '1234') {
-                  setIsLockedFolderOpen(true);
-                  setActiveFolder(folder);
-              } else {
-                  if (pin !== null) alert("Incorrect PIN");
-              }
+              setShowPinModal(true);
           }
       } else {
           setActiveFolder(folder);
       }
+  };
+
+  const handleLockFolder = () => {
+      setIsLockedFolderOpen(false);
+      setActiveFolder('all');
   };
 
   const filteredChats = chats.filter(chat => {
@@ -424,7 +425,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                                 </button>
                             ))}
                         </div>
-                        {/* Archived Toggle */}
+                        {/* Archived Toggle / Lock Actions */}
                         <div className="flex items-center justify-between mb-2 px-1">
                              <button 
                                 onClick={() => setShowArchived(!showArchived)} 
@@ -434,7 +435,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
                                 <span>{showArchived ? 'Hide Archived' : 'View Archived'}</span>
                              </button>
                              {activeFolder === 'locked' && isLockedFolderOpen && (
-                                 <span className="text-xs text-red-400 font-bold border border-red-500/30 px-2 py-0.5 rounded-md bg-red-500/10">Locked Zone</span>
+                                 <button 
+                                    onClick={handleLockFolder}
+                                    className="text-xs text-red-400 font-bold border border-red-500/30 px-3 py-1 rounded-full bg-red-500/10 hover:bg-red-500/20 flex items-center space-x-1 transition"
+                                 >
+                                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                                    <span>Lock Folder</span>
+                                 </button>
                              )}
                         </div>
                      </>
@@ -529,7 +536,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
         {/* Floating Action Button (New Chat) */}
         {(activeTab === 'chats' || activeTab === 'groups') && (
-             <div className={`absolute bottom-28 right-6 z-30 flex flex-col items-center space-y-3`}>
+             <div className={`absolute bottom-28 right-6 z-30 flex flex-col items-center space-x-0 space-y-3`}>
                  <button onClick={() => setShowNewChatModal(true)} className={`w-14 h-14 bg-gradient-to-tr from-emerald-400 to-cyan-500 rounded-full flex items-center justify-center text-white shadow-float hover:scale-110 transition-transform group`}>
                      <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
                  </button>
@@ -558,6 +565,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 </div>
             </div>
         )}
+        
+        <PinModal 
+            isOpen={showPinModal} 
+            onClose={() => setShowPinModal(false)} 
+            onSuccess={() => {
+                setIsLockedFolderOpen(true);
+                setActiveFolder('locked');
+            }}
+            title="Access Locked Folder"
+            actionLabel="Unlock"
+            appTheme={appTheme}
+        />
 
         {navPosition === 'bottom' && <NavTabs activeTab={activeTab} onChange={onTabChange} theme={appTheme} position="bottom" />}
     </div>

@@ -5,6 +5,7 @@ import { ChatWindow } from './components/ChatWindow';
 import { CallModal } from './components/CallModal';
 import { StoryViewer } from './components/StoryViewer';
 import { ImageViewer } from './components/ImageViewer';
+import { PinModal } from './components/PinModal';
 import { CURRENT_USER, INITIAL_CHATS, MOCK_USERS, MOCK_STORIES, MOCK_CALL_LOGS, DEFAULT_WALLPAPER } from './constants';
 import { Chat, MessageType, MessageStatus, CallType, User, Story, CallLog, Message, UserSettings, AppTheme } from './types';
 
@@ -54,6 +55,10 @@ const App: React.FC = () => {
   const [forwardingMessage, setForwardingMessage] = useState<Message | null>(null);
   const [partnerTyping, setPartnerTyping] = useState(false);
   const [currentUser, setCurrentUser] = useState<User>(CURRENT_USER);
+
+  // Pin Modal State for locking individual chats
+  const [showLockChatModal, setShowLockChatModal] = useState(false);
+  const [chatIdToLock, setChatIdToLock] = useState<string | null>(null);
 
   // Persist Chats to LocalStorage
   useEffect(() => {
@@ -389,19 +394,22 @@ const App: React.FC = () => {
       if (!chat) return;
 
       if (chat.folder === 'locked') {
-          // Unlock
+          // Unlock - No PIN needed here, assuming user is already authenticated or just toggling off
           setChats(prev => prev.map(c => c.id === activeChatId ? { ...c, folder: undefined } : c));
       } else {
-          // Lock
-          const pin = prompt("Set PIN for Locked Folder (simulated as '1234'):");
-          if (pin === '1234') {
-              setChats(prev => prev.map(c => c.id === activeChatId ? { ...c, folder: 'locked' } : c));
-              // CRITICAL: Close chat immediately so user has to re-enter via Locked Folder (which prompts for PIN)
-              setActiveChatId(null); 
-              setIsMobileListVisible(true);
-          } else if (pin !== null) {
-              alert("Incorrect PIN");
-          }
+          // Lock - Show Modal
+          setChatIdToLock(activeChatId);
+          setShowLockChatModal(true);
+      }
+  };
+
+  const handleChatLockSuccess = () => {
+      if (chatIdToLock) {
+          setChats(prev => prev.map(c => c.id === chatIdToLock ? { ...c, folder: 'locked' } : c));
+          setActiveChatId(null); 
+          setIsMobileListVisible(true);
+          setShowLockChatModal(false);
+          setChatIdToLock(null);
       }
   };
 
@@ -505,6 +513,17 @@ const App: React.FC = () => {
       {activeCall && <CallModal isOpen={activeCall.isOpen} type={activeCall.type} partner={MOCK_USERS.find(u => u.id === activeCall.partnerId) || MOCK_USERS[0]} onEndCall={() => setActiveCall(null)} />}
       {viewingStoryId && <StoryViewer stories={stories.filter(s => s.userId === (stories.find(st => st.id === viewingStoryId)?.userId))} initialStoryId={viewingStoryId} users={MOCK_USERS} onClose={() => setViewingStoryId(null)} onReply={handleStoryReply} />}
       {viewingImage && <ImageViewer src={viewingImage} onClose={() => setViewingImage(null)} />}
+      
+      {/* Pin Modal for Chat Locking */}
+      <PinModal 
+         isOpen={showLockChatModal} 
+         onClose={() => setShowLockChatModal(false)}
+         onSuccess={handleChatLockSuccess}
+         title="Lock This Chat"
+         actionLabel="Lock"
+         appTheme={appTheme}
+      />
+
       {forwardingMessage && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
            <div className={`rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden flex flex-col max-h-[80vh] ${appTheme === 'pastel' ? 'bg-white' : 'bg-gray-900 border border-gray-700'}`}>
