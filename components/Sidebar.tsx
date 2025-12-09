@@ -10,11 +10,11 @@ interface SidebarProps {
   callLogs: CallLog[];
   users: User[];
   activeChatId: string | null;
-  activeTab: 'chats' | 'status' | 'calls' | 'settings';
+  activeTab: 'chats' | 'groups' | 'status' | 'calls' | 'settings';
   appTheme: AppTheme;
   currentWallpaper: string;
   navPosition: 'top' | 'bottom';
-  onTabChange: (tab: 'chats' | 'status' | 'calls' | 'settings') => void;
+  onTabChange: (tab: 'chats' | 'groups' | 'status' | 'calls' | 'settings') => void;
   onSelectChat: (chatId: string) => void;
   onCreateChat: (userId: string) => void;
   onViewStory: (storyId: string) => void;
@@ -40,7 +40,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const [settingsView, setSettingsView] = useState<SettingsView>('main');
   const [showArchived, setShowArchived] = useState(false);
   const [showNewChatModal, setShowNewChatModal] = useState(false);
-  const storyInputRef = useRef<HTMLInputElement>(null);
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
 
   // Dynamic Styles based on Theme
   const getPanelClass = () => {
@@ -65,10 +65,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
   };
 
   const filteredChats = chats.filter(chat => {
+    // Tab Filtering
+    if (activeTab === 'groups' && chat.type !== 'group') return false;
+    if (activeTab === 'chats' && chat.type === 'group') return false;
+
     if (showArchived && !chat.archived) return false;
     if (!showArchived && chat.archived) return false;
+    
     const partner = chat.participants.find(p => p.id !== currentUser.id) || chat.participants[0];
-    return partner?.name.toLowerCase().includes(searchTerm.toLowerCase());
+    const nameMatch = partner?.name.toLowerCase().includes(searchTerm.toLowerCase());
+    const lastMsgMatch = chat.lastMessage?.content.toLowerCase().includes(searchTerm.toLowerCase());
+    return nameMatch || lastMsgMatch;
   });
 
   const SettingsHeader = ({ title, onBack }: { title: string, onBack: () => void }) => (
@@ -152,58 +159,85 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   return (
     <div className={`h-full flex flex-col ${getPanelClass()} transition-colors duration-500 relative`}>
-        {/* Modern Header */}
-        <div className="p-6 shrink-0 flex justify-between items-center">
-            <div className="flex items-center space-x-3" onClick={() => { onTabChange('settings'); setSettingsView('main'); }}>
-                 <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-400 to-purple-500 flex items-center justify-center shadow-neon">
-                     <span className="text-white font-bold text-lg">N</span>
-                 </div>
-                 <h1 className={`text-2xl font-bold tracking-tight ${getTextClass()}`}>Nexus</h1>
+        {/* Profile Card / Header (Dashboard Style) */}
+        <div className="p-4 shrink-0">
+            <div className={`p-4 rounded-2xl flex items-center justify-between shadow-lg transition-all duration-300 ${appTheme === 'pastel' ? 'bg-white' : 'bg-gradient-to-r from-indigo-600 to-purple-700 text-white shadow-neon-purple'}`}>
+                <div className="flex items-center space-x-3 cursor-pointer" onClick={() => { onTabChange('settings'); setSettingsView('main'); }}>
+                    <div className="relative">
+                        <img src={currentUser.avatar} className="w-12 h-12 rounded-full border-2 border-white/50" alt="Me" />
+                        <span className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-400 border-2 border-indigo-700 rounded-full"></span>
+                    </div>
+                    <div>
+                        <h3 className="font-bold text-lg leading-tight">{currentUser.name}</h3>
+                        <p className="text-xs opacity-80">{currentUser.phoneNumber}</p>
+                    </div>
+                </div>
+                <button onClick={() => { onTabChange('settings'); setSettingsView('main'); }} className="p-2 rounded-full bg-white/20 hover:bg-white/30 backdrop-blur-sm transition">
+                    <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                </button>
             </div>
-            <button onClick={() => { onTabChange('settings'); setSettingsView('main'); }} className="relative">
-                <img src={currentUser.avatar} className="w-10 h-10 rounded-full border-2 border-white/20 hover:border-emerald-500 transition-all" alt="Me" />
-                <span className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 border-2 border-black rounded-full"></span>
-            </button>
         </div>
 
         {navPosition === 'top' && <NavTabs activeTab={activeTab} onChange={onTabChange} theme={appTheme} position="top" />}
 
         {/* Content */}
         <div className={`flex-1 overflow-y-auto scrollbar-hide px-4 ${navPosition === 'bottom' ? 'pb-28' : 'pb-4'}`}>
-            {activeTab === 'chats' && (
+            {(activeTab === 'chats' || activeTab === 'groups') && (
                 <>
-                  <div className={`mb-6 sticky top-0 z-20 pt-2 pb-4 transition-all ${appTheme === 'glass' ? 'bg-transparent' : appTheme === 'amoled' ? 'bg-black' : 'bg-white'}`}>
-                      <div className={`relative group w-full`}>
+                  {/* Animated Search Bar */}
+                  <div className={`mb-4 sticky top-0 z-20 pt-2 pb-2 transition-all ${appTheme === 'glass' ? 'bg-transparent' : appTheme === 'amoled' ? 'bg-black' : 'bg-white'}`}>
+                      <div className={`relative group w-full transition-all duration-300 ${isSearchFocused ? 'scale-105' : 'scale-100'}`}>
                           <div className={`absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none`}>
-                              <svg className={`w-5 h-5 ${getSubTextClass()}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                              <svg className={`w-5 h-5 ${isSearchFocused ? 'text-emerald-500' : getSubTextClass()}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
                           </div>
-                          <input type="text" placeholder="Search..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} 
-                                 className={`w-full pl-12 pr-4 py-3 rounded-full outline-none transition-all shadow-lg ${appTheme === 'pastel' ? 'bg-gray-100 text-gray-900 focus:bg-white focus:ring-2 focus:ring-purple-200' : 'bg-white/5 text-white focus:bg-white/10 border border-white/10 focus:border-white/30'}`} />
+                          <input 
+                                type="text" 
+                                placeholder="Search conversations..." 
+                                value={searchTerm} 
+                                onFocus={() => setIsSearchFocused(true)}
+                                onBlur={() => setIsSearchFocused(false)}
+                                onChange={(e) => setSearchTerm(e.target.value)} 
+                                className={`w-full pl-12 pr-4 py-3 rounded-2xl outline-none transition-all shadow-lg ${appTheme === 'pastel' ? 'bg-gray-100 text-gray-900 focus:bg-white focus:ring-2 focus:ring-purple-200' : 'bg-white/5 text-white focus:bg-white/10 border border-white/5 focus:border-emerald-500/50'}`} 
+                          />
                       </div>
                   </div>
 
-                  <div className="space-y-2">
-                      {filteredChats.map(chat => {
-                          const partner = chat.participants.find(p => p.id !== currentUser.id) || chat.participants[0];
-                          const isActive = activeChatId === chat.id;
-                          return (
-                              <div key={chat.id} onClick={() => onSelectChat(chat.id)} 
-                                   className={`group p-4 rounded-2xl cursor-pointer transition-all duration-300 transform hover:scale-[1.02] flex items-center space-x-4 ${isActive ? getActiveCardClass() : getCardHoverClass()}`}>
-                                  <div className="relative">
-                                      <img src={partner.avatar} className="w-14 h-14 rounded-full object-cover shadow-sm group-hover:shadow-neon transition-all" alt="" />
-                                      {partner.status === 'online' && <div className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-emerald-500 border-2 border-black rounded-full shadow-neon"></div>}
-                                  </div>
-                                  <div className="flex-1 min-w-0">
-                                      <div className="flex justify-between items-center mb-1">
-                                          <h3 className={`font-bold text-lg truncate ${getTextClass()}`}>{partner.name}</h3>
-                                          <span className={`text-xs font-medium ${getSubTextClass()}`}>12:40 PM</span>
+                  <div className="space-y-3">
+                      {filteredChats.length === 0 ? (
+                          <div className={`text-center py-10 opacity-60 ${getTextClass()}`}>
+                              <p>No {activeTab === 'groups' ? 'groups' : 'chats'} found</p>
+                              <button onClick={() => setShowNewChatModal(true)} className="mt-4 text-emerald-500 font-bold hover:underline">Start a new chat</button>
+                          </div>
+                      ) : (
+                          filteredChats.map(chat => {
+                              const partner = chat.participants.find(p => p.id !== currentUser.id) || chat.participants[0];
+                              const isActive = activeChatId === chat.id;
+                              return (
+                                  <div key={chat.id} onClick={() => onSelectChat(chat.id)} 
+                                      className={`group p-4 rounded-2xl cursor-pointer transition-all duration-300 transform hover:scale-[1.02] flex items-center space-x-4 ${isActive ? getActiveCardClass() : getCardHoverClass()}`}>
+                                      <div className="relative">
+                                          <img src={partner.avatar} className="w-14 h-14 rounded-full object-cover shadow-sm group-hover:shadow-neon transition-all" alt="" />
+                                          {partner.status === 'online' && <div className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-emerald-500 border-2 border-black rounded-full shadow-neon"></div>}
                                       </div>
-                                      <p className={`text-sm truncate opacity-80 ${getSubTextClass()}`}>{chat.messages[chat.messages.length - 1]?.content || "Start chatting..."}</p>
+                                      <div className="flex-1 min-w-0">
+                                          <div className="flex justify-between items-center mb-1">
+                                              <h3 className={`font-bold text-lg truncate ${getTextClass()}`}>{partner.name}</h3>
+                                              {chat.lastMessage && <span className={`text-xs font-medium ${getSubTextClass()}`}>{chat.lastMessage.timestamp.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>}
+                                          </div>
+                                          <p className={`text-sm truncate opacity-80 ${getSubTextClass()}`}>
+                                              {chat.lastMessage ? (
+                                                  <span className="flex items-center">
+                                                      {chat.lastMessage.senderId === currentUser.id && <span className="mr-1">You:</span>}
+                                                      {chat.lastMessage.type === 'image' ? '📷 Photo' : chat.lastMessage.content}
+                                                  </span>
+                                              ) : "Start chatting..."}
+                                          </p>
+                                      </div>
+                                      {chat.unreadCount > 0 && <div className="w-6 h-6 rounded-full bg-emerald-500 flex items-center justify-center text-xs font-bold text-black shadow-neon">{chat.unreadCount}</div>}
                                   </div>
-                                  {chat.unreadCount > 0 && <div className="w-6 h-6 rounded-full bg-emerald-500 flex items-center justify-center text-xs font-bold text-black shadow-neon">{chat.unreadCount}</div>}
-                              </div>
-                          );
-                      })}
+                              );
+                          })
+                      )}
                   </div>
                 </>
             )}
@@ -215,11 +249,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
         </div>
 
-        {/* Floating Action Button for New Chat */}
-        {activeTab === 'chats' && (
-             <button onClick={() => setShowNewChatModal(true)} className={`absolute bottom-28 right-6 w-14 h-14 bg-gradient-to-tr from-emerald-400 to-cyan-500 rounded-full flex items-center justify-center text-white shadow-float hover:scale-110 transition-transform z-30 ${navPosition === 'bottom' ? 'mb-0' : 'mb-0'}`}>
-                 <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-             </button>
+        {/* Floating Action Button (New Chat) */}
+        {(activeTab === 'chats' || activeTab === 'groups') && (
+             <div className={`absolute bottom-28 right-6 z-30 flex flex-col items-center space-y-3`}>
+                 {/* Mini FAB for Call (Example) */}
+                 <button onClick={() => alert("New Call UI")} className={`w-10 h-10 bg-gray-700 rounded-full flex items-center justify-center text-white shadow-lg hover:scale-110 transition-transform opacity-0 group-hover:opacity-100 hover:opacity-100 pointer-events-none group-hover:pointer-events-auto`}>
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
+                 </button>
+                 
+                 <button onClick={() => setShowNewChatModal(true)} className={`w-14 h-14 bg-gradient-to-tr from-emerald-400 to-cyan-500 rounded-full flex items-center justify-center text-white shadow-float hover:scale-110 transition-transform group`}>
+                     <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                 </button>
+             </div>
         )}
 
         {navPosition === 'bottom' && <NavTabs activeTab={activeTab} onChange={onTabChange} theme={appTheme} position="bottom" />}
@@ -231,47 +272,44 @@ const NavTabs = ({ activeTab, onChange, theme, position }: { activeTab: string, 
     const isPastel = theme === 'pastel';
     const isGlass = theme === 'glass';
     
-    // Floating styling for bottom position with glassmorphism and rounded shape
     const wrapperClass = position === 'bottom' 
         ? "absolute bottom-6 left-6 right-6 z-40" 
-        : "relative px-6 py-2 mb-2";
+        : "px-4 py-2 mb-2";
 
-    const containerClass = isPastel 
-        ? "bg-white/95 shadow-lg border border-gray-100" 
-        : isGlass 
-            ? "bg-black/40 backdrop-blur-xl border border-white/10 shadow-glass"
-            : "bg-gray-900 border border-gray-800 shadow-2xl";
+    // Segmented Control style for top, Floating Dock for bottom
+    const containerClass = position === 'bottom'
+        ? (isPastel ? "bg-white/95 shadow-lg border border-gray-100 rounded-[2rem] justify-around" : isGlass ? "bg-black/40 backdrop-blur-xl border border-white/10 shadow-glass rounded-[2rem] justify-around" : "bg-gray-900 border border-gray-800 shadow-2xl rounded-[2rem] justify-around")
+        : (isPastel ? "bg-gray-100 p-1 rounded-xl grid grid-cols-5 gap-1" : "bg-white/5 p-1 rounded-xl grid grid-cols-5 gap-1 border border-white/5");
 
-    const activeItemClass = isPastel
-        ? "text-purple-600 bg-purple-50 shadow-sm -translate-y-1"
-        : "text-white bg-gradient-to-tr from-cyan-500 to-blue-500 shadow-neon -translate-y-1";
+    const activeItemClass = position === 'bottom'
+        ? (isPastel ? "text-purple-600 bg-purple-50 shadow-sm -translate-y-1" : "text-white bg-gradient-to-tr from-cyan-500 to-blue-500 shadow-neon -translate-y-1")
+        : (isPastel ? "bg-white text-gray-900 shadow-sm" : "bg-white/10 text-white shadow-sm");
 
-    const inactiveItemClass = isPastel
-        ? "text-gray-400 hover:text-gray-600"
-        : "text-gray-500 hover:text-gray-300";
+    const inactiveItemClass = position === 'bottom'
+        ? (isPastel ? "text-gray-400 hover:text-gray-600" : "text-gray-500 hover:text-gray-300")
+        : (isPastel ? "text-gray-500 hover:text-gray-700 hover:bg-white/50" : "text-gray-400 hover:text-white hover:bg-white/5");
+
+    const tabs = ['chats', 'groups', 'status', 'calls', 'settings'];
 
     return (
         <div className={wrapperClass}>
-            <div className={`flex justify-around items-center px-2 py-3 rounded-[2rem] ${containerClass} transition-all duration-300`}>
-                {['chats', 'status', 'calls', 'settings'].map(tab => {
+            <div className={`flex items-center px-2 py-2 ${containerClass} transition-all duration-300`}>
+                {tabs.map(tab => {
                     const isActive = activeTab === tab;
                     return (
                         <button 
                             key={tab} 
                             onClick={() => onChange(tab)} 
-                            className={`relative group flex flex-col items-center justify-center w-14 h-14 rounded-2xl transition-all duration-300 ease-out ${isActive ? activeItemClass : inactiveItemClass}`}
+                            className={`relative group flex flex-col items-center justify-center ${position === 'bottom' ? 'w-12 h-12 rounded-2xl' : 'h-9 rounded-lg'} transition-all duration-300 ease-out ${isActive ? activeItemClass : inactiveItemClass}`}
                         >
-                            <span className={`transition-transform duration-300 ${isActive ? 'scale-110' : 'group-hover:scale-110'}`}>
-                               {tab === 'chats' ? (
-                                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
-                               ) : tab === 'status' ? (
-                                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.636 18.364a9 9 0 010-12.728m12.728 0a9 9 0 010 12.728m-9.9-2.829a5 5 0 010-7.07m7.072 0a5 5 0 010 7.07M13 12a1 1 0 11-2 0 1 1 0 012 0z" /></svg>
-                               ) : tab === 'calls' ? (
-                                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
-                               ) : (
-                                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                               )}
+                            <span className={`transition-transform duration-300 ${isActive && position === 'bottom' ? 'scale-110' : ''}`}>
+                               {tab === 'chats' ? <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg> : 
+                                tab === 'groups' ? <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg> :
+                                tab === 'status' ? <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.636 18.364a9 9 0 010-12.728m12.728 0a9 9 0 010 12.728m-9.9-2.829a5 5 0 010-7.07m7.072 0a5 5 0 010 7.07M13 12a1 1 0 11-2 0 1 1 0 012 0z" /></svg> :
+                                tab === 'calls' ? <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg> :
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>}
                             </span>
+                            {position === 'top' && <span className="text-[10px] mt-0.5 font-medium capitalize">{tab}</span>}
                         </button>
                     );
                 })}

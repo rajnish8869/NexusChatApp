@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { ChatWindow } from './components/ChatWindow';
@@ -17,7 +16,7 @@ const App: React.FC = () => {
   const [activeCall, setActiveCall] = useState<{ isOpen: boolean, type: CallType, partnerId: string } | null>(null);
   const [viewingStoryId, setViewingStoryId] = useState<string | null>(null);
   const [isMobileListVisible, setIsMobileListVisible] = useState(true);
-  const [sidebarTab, setSidebarTab] = useState<'chats' | 'status' | 'calls' | 'settings'>('chats');
+  const [sidebarTab, setSidebarTab] = useState<'chats' | 'groups' | 'status' | 'calls' | 'settings'>('chats');
   
   // Theme State
   const [appTheme, setAppTheme] = useState<AppTheme>('glass');
