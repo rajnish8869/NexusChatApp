@@ -6,36 +6,80 @@ import { CallModal } from './components/CallModal';
 import { StoryViewer } from './components/StoryViewer';
 import { ImageViewer } from './components/ImageViewer';
 import { CURRENT_USER, INITIAL_CHATS, MOCK_USERS, MOCK_STORIES, MOCK_CALL_LOGS, DEFAULT_WALLPAPER } from './constants';
-import { Chat, MessageType, MessageStatus, CallType, User, Story, CallLog, Message, UserSettings } from './types';
+import { Chat, MessageType, MessageStatus, CallType, User, Story, CallLog, Message, UserSettings, AppTheme } from './types';
 
 type AuthState = 'login' | 'app';
 
 const App: React.FC = () => {
   const [authState, setAuthState] = useState<AuthState>('login');
-  const [chats, setChats] = useState<Chat[]>(INITIAL_CHATS);
+  
+  // Initialize chats from LocalStorage or Default
+  const [chats, setChats] = useState<Chat[]>(() => {
+    const saved = localStorage.getItem('nexus_chats');
+    if (saved) {
+        try {
+            const parsed = JSON.parse(saved);
+            // Revive Date objects from ISO strings
+            return parsed.map((c: any) => ({
+                ...c,
+                lastMessage: c.lastMessage ? { ...c.lastMessage, timestamp: new Date(c.lastMessage.timestamp) } : undefined,
+                messages: c.messages.map((m: any) => ({ 
+                    ...m, 
+                    timestamp: new Date(m.timestamp),
+                    pollOptions: m.pollOptions ? m.pollOptions.map((opt: any) => ({...opt})) : undefined
+                })),
+                muteUntil: c.muteUntil ? new Date(c.muteUntil) : undefined
+            }));
+        } catch (e) {
+            console.error("Failed to load chats from storage", e);
+            return INITIAL_CHATS;
+        }
+    }
+    return INITIAL_CHATS;
+  });
+
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
   const [activeCall, setActiveCall] = useState<{ isOpen: boolean, type: CallType, partnerId: string } | null>(null);
   const [viewingStoryId, setViewingStoryId] = useState<string | null>(null);
   const [isMobileListVisible, setIsMobileListVisible] = useState(true);
-  const [sidebarTab, setSidebarTab] = useState<'chats' | 'status' | 'calls' | 'settings'>('chats');
-  const [theme, setTheme] = useState<'light' | 'dark'>('light');
+  const [sidebarTab, setSidebarTab] = useState<'chats' | 'groups' | 'status' | 'calls' | 'settings'>('chats');
+  
+  // Theme State
+  const [appTheme, setAppTheme] = useState<AppTheme>('glass');
   const [wallpaper, setWallpaper] = useState<string>(DEFAULT_WALLPAPER);
   const [navPosition, setNavPosition] = useState<'top' | 'bottom'>('bottom');
-  const [viewingImage, setViewingImage] = useState<string | null>(null);
   
+  const [viewingImage, setViewingImage] = useState<string | null>(null);
   const [stories, setStories] = useState<Story[]>(MOCK_STORIES);
   const [forwardingMessage, setForwardingMessage] = useState<Message | null>(null);
   const [partnerTyping, setPartnerTyping] = useState(false);
   const [currentUser, setCurrentUser] = useState<User>(CURRENT_USER);
 
+  // Persist Chats to LocalStorage
   useEffect(() => {
-    if (theme === 'dark') {
-      document.documentElement.classList.add('dark');
+      localStorage.setItem('nexus_chats', JSON.stringify(chats));
+  }, [chats]);
+
+  // Apply Theme Classes
+  useEffect(() => {
+    // Reset classes
+    document.documentElement.classList.remove('dark', 'theme-glass', 'theme-amoled', 'theme-pastel');
+    
+    // Add base theme class
+    document.documentElement.classList.add(`theme-${appTheme}`);
+
+    // Handle Dark Mode logic for specific themes
+    if (appTheme === 'amoled') {
+        document.documentElement.classList.add('dark');
+    } else if (appTheme === 'glass') {
+        // Glass can be dark or light, let's default to dark for Neo-Modern feel
+        document.documentElement.classList.add('dark');
     } else {
-      document.documentElement.classList.remove('dark');
+        // Pastel is typically light
+        document.documentElement.classList.remove('dark');
     }
-  }, [theme]);
-  
+  }, [appTheme]);
+
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     setAuthState('app');
@@ -43,11 +87,11 @@ const App: React.FC = () => {
 
   const activeChat = chats.find(c => c.id === activeChatId) || null;
 
+  // --- Message Handling Logic ---
   const handleSendMessage = (text: string, type: MessageType, mediaUrl?: string, replyToId?: string, pollOptions?: string[], targetChatId?: string) => {
     const chatId = targetChatId || activeChatId;
     if (!chatId) return;
     
-    // Find the chat object to get participants for blocking check
     const targetChat = chats.find(c => c.id === chatId);
     const partner = targetChat?.participants.find(p => p.id !== currentUser.id);
 
@@ -56,6 +100,7 @@ const App: React.FC = () => {
         return;
     }
 
+    // EXPLICITLY capture replyToId to ensure it persists in the object
     const newMessage: Message = {
       id: `m-${Date.now()}`,
       senderId: currentUser.id,
@@ -65,7 +110,7 @@ const App: React.FC = () => {
       timestamp: new Date(),
       status: MessageStatus.SENT,
       reactions: [],
-      replyToId: replyToId,
+      replyToId: replyToId, // Ensure this is not undefined if a reply exists
       isStarred: false,
       pollOptions: type === MessageType.POLL && pollOptions ? pollOptions.map((opt, i) => ({
           id: `opt-${i}`,
@@ -93,43 +138,41 @@ const App: React.FC = () => {
        return tb - ta;
     }));
 
+    // Simulate status updates (Delivered)
     setTimeout(() => {
        setChats(prev => prev.map(c => 
          c.id === chatId ? {
-           ...c, messages: c.messages.map(m => m.id === newMessage.id ? { ...m, status: MessageStatus.DELIVERED } : m)
+           ...c, messages: c.messages.map(m => m.id === newMessage.id ? { ...m, status: MessageStatus.DELIVERED, replyToId: m.replyToId } : m)
          } : c
        ));
     }, 1000);
 
+    // Simulate status updates (Read)
     if (currentUser.settings?.privacy.readReceipts) {
       setTimeout(() => {
          setChats(prev => prev.map(c => 
            c.id === chatId ? {
-             ...c, messages: c.messages.map(m => m.id === newMessage.id ? { ...m, status: MessageStatus.READ } : m)
+             ...c, messages: c.messages.map(m => m.id === newMessage.id ? { ...m, status: MessageStatus.READ, replyToId: m.replyToId } : m)
            } : c
          ));
       }, 2500);
     }
 
-    // Auto-reply unless it's a poll or self-chat
+    // Partner Typing Simulation
     if (targetChat?.participants.length && targetChat.participants.length > 0 && !targetChatId) {
-        setTimeout(() => {
-            setPartnerTyping(true);
-        }, 2000);
-
+        setTimeout(() => setPartnerTyping(true), 2000);
         setTimeout(() => {
           setPartnerTyping(false);
           const responseMsg: Message = {
             id: `m-r-${Date.now()}`,
             senderId: targetChat?.participants.find(p => p.id !== currentUser.id)?.id || 'unknown',
-            content: type === MessageType.AUDIO ? "Can't listen right now." : "Interesting!",
+            content: "Interesting!",
             type: MessageType.TEXT,
             timestamp: new Date(),
             status: MessageStatus.DELIVERED,
             reactions: [],
             isStarred: false
           };
-
           setChats(prevChats => prevChats.map(chat => {
             if (chat.id === chatId) {
               return {
@@ -148,12 +191,8 @@ const App: React.FC = () => {
   const handleStoryReply = (storyId: string, text: string) => {
       const story = stories.find(s => s.id === storyId);
       if (!story) return;
-
-      // Find chat with this user
       let chat = chats.find(c => c.participants.some(p => p.id === story.userId));
-      
       if (!chat) {
-         // Create new chat if not exists
          const user = MOCK_USERS.find(u => u.id === story.userId);
          if (!user) return;
          const newChat: Chat = {
@@ -169,12 +208,7 @@ const App: React.FC = () => {
          setChats(prev => [newChat, ...prev]);
          chat = newChat;
       }
-      
-      // Send message
       handleSendMessage(`Replying to story: ${text}`, MessageType.TEXT, undefined, undefined, undefined, chat.id);
-      
-      // If we weren't in that chat, don't navigate, just notify (optional). 
-      // User stays in story view or closes it.
   };
 
   const handleReaction = (chatId: string, messageId: string, emoji: string) => {
@@ -184,24 +218,17 @@ const App: React.FC = () => {
         ...chat,
         messages: chat.messages.map(msg => {
           if (msg.id !== messageId) return msg;
-          
           const existingReaction = msg.reactions.find(r => r.emoji === emoji);
           let newReactions;
-
           if (existingReaction) {
             if (existingReaction.userReacted) {
-              newReactions = msg.reactions.map(r => 
-                r.emoji === emoji ? { ...r, count: r.count - 1, userReacted: false } : r
-              ).filter(r => r.count > 0);
+              newReactions = msg.reactions.map(r => r.emoji === emoji ? { ...r, count: r.count - 1, userReacted: false } : r).filter(r => r.count > 0);
             } else {
-              newReactions = msg.reactions.map(r => 
-                r.emoji === emoji ? { ...r, count: r.count + 1, userReacted: true } : r
-              );
+              newReactions = msg.reactions.map(r => r.emoji === emoji ? { ...r, count: r.count + 1, userReacted: true } : r);
             }
           } else {
             newReactions = [...msg.reactions, { emoji, count: 1, userReacted: true }];
           }
-          
           return { ...msg, reactions: newReactions };
         })
       };
@@ -209,27 +236,11 @@ const App: React.FC = () => {
   };
 
   const handleEditMessage = (chatId: string, messageId: string, newContent: string) => {
-    setChats(prev => prev.map(chat => {
-      if (chat.id !== chatId) return chat;
-      return {
-        ...chat,
-        messages: chat.messages.map(msg => 
-          msg.id === messageId ? { ...msg, content: newContent, isEdited: true } : msg
-        )
-      };
-    }));
+    setChats(prev => prev.map(chat => chat.id !== chatId ? chat : { ...chat, messages: chat.messages.map(msg => msg.id === messageId ? { ...msg, content: newContent, isEdited: true } : msg) }));
   };
 
   const handleDeleteMessage = (chatId: string, messageId: string) => {
-    setChats(prev => prev.map(chat => {
-      if (chat.id !== chatId) return chat;
-      return {
-        ...chat,
-        messages: chat.messages.map(msg => 
-          msg.id === messageId ? { ...msg, isDeleted: true, content: 'This message was deleted', type: MessageType.TEXT } : msg
-        )
-      };
-    }));
+    setChats(prev => prev.map(chat => chat.id !== chatId ? chat : { ...chat, messages: chat.messages.map(msg => msg.id === messageId ? { ...msg, isDeleted: true, content: 'This message was deleted', type: MessageType.TEXT } : msg) }));
   };
 
   const handleForwardMessage = (chatId: string) => {
@@ -250,12 +261,7 @@ const App: React.FC = () => {
             forwarded: true,
             isStarred: false
         };
-        setChats(prev => prev.map(c => c.id === chatId ? {
-            ...c,
-            messages: [...c.messages, newMessage],
-            lastMessage: newMessage,
-            unreadCount: 0
-        } : c));
+        setChats(prev => prev.map(c => c.id === chatId ? { ...c, messages: [...c.messages, newMessage], lastMessage: newMessage, unreadCount: 0 } : c));
     }, 100);
   };
 
@@ -317,170 +323,128 @@ const App: React.FC = () => {
 
   const handleClearChats = () => {
     if (confirm("Are you sure you want to clear all chat history?")) {
-        setChats(prev => prev.map(c => ({
-          ...c,
-          messages: [],
-          lastMessage: undefined,
-          unreadCount: 0
-        })));
+        setChats(prev => prev.map(c => ({ ...c, messages: [], lastMessage: undefined, unreadCount: 0 })));
     }
   };
 
   const handleToggleStar = (messageId: string) => {
       if (!activeChatId) return;
-      setChats(prev => prev.map(c => {
-          if (c.id !== activeChatId) return c;
-          return {
-              ...c,
-              messages: c.messages.map(m => m.id === messageId ? { ...m, isStarred: !m.isStarred } : m)
-          };
-      }));
+      setChats(prev => prev.map(c => c.id !== activeChatId ? c : { ...c, messages: c.messages.map(m => m.id === messageId ? { ...m, isStarred: !m.isStarred } : m) }));
   };
 
   const handlePinMessage = (messageId: string) => {
       if (!activeChatId) return;
-      setChats(prev => prev.map(c => c.id === activeChatId ? { 
-          ...c, 
-          pinnedMessageId: c.pinnedMessageId === messageId ? undefined : messageId 
-      } : c));
+      setChats(prev => prev.map(c => c.id === activeChatId ? { ...c, pinnedMessageId: c.pinnedMessageId === messageId ? undefined : messageId } : c));
   };
 
   const handleVotePoll = (messageId: string, optionId: string) => {
       if (!activeChatId) return;
-      setChats(prev => prev.map(c => {
-          if (c.id !== activeChatId) return c;
-          return {
-              ...c,
-              messages: c.messages.map(m => {
-                  if (m.id !== messageId || !m.pollOptions) return m;
-                  return {
-                      ...m,
-                      pollOptions: m.pollOptions.map(opt => {
-                          const hasVoted = opt.votes.includes(currentUser.id);
-                          if (opt.id === optionId) {
-                              return {
-                                  ...opt,
-                                  votes: hasVoted 
-                                    ? opt.votes.filter(id => id !== currentUser.id)
-                                    : [...opt.votes, currentUser.id]
-                              };
-                          }
-                          return opt;
-                      })
-                  };
-              })
-          };
-      }));
+      setChats(prev => prev.map(c => c.id !== activeChatId ? c : { ...c, messages: c.messages.map(m => {
+          if (m.id !== messageId || !m.pollOptions) return m;
+          return { ...m, pollOptions: m.pollOptions.map(opt => opt.id === optionId ? { ...opt, votes: opt.votes.includes(currentUser.id) ? opt.votes.filter(id => id !== currentUser.id) : [...opt.votes, currentUser.id] } : opt) };
+      }) }));
   };
 
-  const handleToggleMute = () => {
-      if (!activeChatId) return;
-      setChats(prev => prev.map(c => c.id === activeChatId ? { ...c, muted: !c.muted } : c));
-  };
-
-  const handleToggleEphemeral = () => {
-      if (!activeChatId) return;
-      setChats(prev => prev.map(c => c.id === activeChatId ? { ...c, ephemeralMode: !c.ephemeralMode } : c));
-  };
-
-  const handleArchiveChat = () => {
-      if (!activeChatId) return;
-      setChats(prev => prev.map(c => c.id === activeChatId ? { ...c, archived: !c.archived } : c));
-      setIsMobileListVisible(true);
-      setActiveChatId(null);
-  };
+  const handleToggleMute = () => { if (activeChatId) setChats(prev => prev.map(c => c.id === activeChatId ? { ...c, muted: !c.muted } : c)); };
+  const handleToggleEphemeral = () => { if (activeChatId) setChats(prev => prev.map(c => c.id === activeChatId ? { ...c, ephemeralMode: !c.ephemeralMode } : c)); };
+  const handleArchiveChat = () => { if (activeChatId) { setChats(prev => prev.map(c => c.id === activeChatId ? { ...c, archived: !c.archived } : c)); setIsMobileListVisible(true); setActiveChatId(null); }};
 
   const handleBlockUser = (userId: string) => {
       const isBlocked = currentUser.blockedUsers.includes(userId);
       if (isBlocked) {
-          // Unblock
-          setCurrentUser(prev => ({
-              ...prev,
-              blockedUsers: prev.blockedUsers.filter(id => id !== userId)
-          }));
+          setCurrentUser(prev => ({ ...prev, blockedUsers: prev.blockedUsers.filter(id => id !== userId) }));
       } else {
-          // Block
           if (confirm("Are you sure you want to block this user?")) {
-            setCurrentUser(prev => ({
-                ...prev,
-                blockedUsers: [...prev.blockedUsers, userId]
-            }));
-            setPartnerTyping(false); // Stop typing if blocked
+            setCurrentUser(prev => ({ ...prev, blockedUsers: [...prev.blockedUsers, userId] }));
+            setPartnerTyping(false);
           }
       }
   };
 
   const handleUnblockUser = (userId: string) => {
-      setCurrentUser(prev => ({
-          ...prev,
-          blockedUsers: prev.blockedUsers.filter(id => id !== userId)
-      }));
+      setCurrentUser(prev => ({ ...prev, blockedUsers: prev.blockedUsers.filter(id => id !== userId) }));
   };
 
-  const handleReportUser = (userId: string) => {
-      if(confirm("Report this user for spam or inappropriate content?")) {
-        alert("User reported to support.");
-      }
-  };
+  const handleReportUser = (userId: string) => { if(confirm("Report this user?")) alert("User reported."); };
 
   const handleUpdateSettings = (newSettings: Partial<UserSettings>) => {
-      setCurrentUser(prev => ({
-          ...prev,
-          settings: {
-              ...prev.settings!,
-              ...newSettings
-          }
-      }));
+      setCurrentUser(prev => ({ ...prev, settings: { ...prev.settings!, ...newSettings } }));
+      if (newSettings.appTheme) setAppTheme(newSettings.appTheme);
+      if (newSettings.navPosition) setNavPosition(newSettings.navPosition);
+      if (newSettings.wallpaper) setWallpaper(newSettings.wallpaper);
+  };
+  
+  const handleUpdateProfile = (updates: Partial<User>) => {
+      setCurrentUser(prev => ({ ...prev, ...updates }));
   };
 
   const handleToggleReadReceipts = () => {
-      if (currentUser.settings) {
-          handleUpdateSettings({
-              privacy: {
-                  ...currentUser.settings.privacy,
-                  readReceipts: !currentUser.settings.privacy.readReceipts
-              }
-          });
+      if (currentUser.settings) handleUpdateSettings({ privacy: { ...currentUser.settings.privacy, readReceipts: !currentUser.settings.privacy.readReceipts } });
+  };
+  
+  const handleToggleChatLock = () => {
+      if (!activeChatId) return;
+      
+      const chat = chats.find(c => c.id === activeChatId);
+      if (!chat) return;
+
+      if (chat.folder === 'locked') {
+          // Unlock
+          setChats(prev => prev.map(c => c.id === activeChatId ? { ...c, folder: undefined } : c));
+      } else {
+          // Lock
+          const pin = prompt("Set PIN for Locked Folder (simulated as '1234'):");
+          if (pin === '1234') {
+              setChats(prev => prev.map(c => c.id === activeChatId ? { ...c, folder: 'locked' } : c));
+              // CRITICAL: Close chat immediately so user has to re-enter via Locked Folder (which prompts for PIN)
+              setActiveChatId(null); 
+              setIsMobileListVisible(true);
+          } else if (pin !== null) {
+              alert("Incorrect PIN");
+          }
+      }
+  };
+
+  const handleUpdateNote = (note: string) => {
+      if (activeChatId) {
+          setChats(prev => prev.map(c => c.id === activeChatId ? { ...c, contactNotes: note } : c));
+      }
+  };
+
+  // Get Background Styles based on Theme
+  const getContainerStyles = () => {
+      switch(appTheme) {
+          case 'glass':
+              return "bg-[url('https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=2564&auto=format&fit=crop')] bg-cover bg-fixed";
+          case 'amoled':
+              return "bg-amoled-bg text-white";
+          case 'pastel':
+              return "bg-pastel-bg text-gray-800";
+          default:
+              return "bg-gray-50";
       }
   };
 
   if (authState === 'login') {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-nexus-50 to-blue-100 dark:from-dark-bg dark:to-slate-900 flex items-center justify-center p-4 relative overflow-hidden">
-        <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
-           <div className="absolute -top-[20%] -left-[10%] w-[50%] h-[50%] bg-nexus-300/30 rounded-full blur-[100px] animate-pulse"></div>
-           <div className="absolute bottom-[10%] right-[10%] w-[40%] h-[40%] bg-blue-300/30 rounded-full blur-[120px] animate-pulse" style={{ animationDelay: '1s' }}></div>
-        </div>
-        <div className="bg-white/80 dark:bg-dark-panel/80 backdrop-blur-xl p-8 md:p-12 rounded-3xl shadow-2xl w-full max-w-md transition-all border border-white/50 dark:border-gray-700/50 relative z-10 animate-pop-in">
-          <div className="text-center mb-10">
-            <div className="w-20 h-20 bg-gradient-to-tr from-nexus-400 to-nexus-600 rounded-3xl rotate-3 mx-auto mb-6 flex items-center justify-center shadow-lg shadow-nexus-500/40">
-              <svg className="w-10 h-10 text-white transform -rotate-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
-            </div>
-            <h1 className="text-4xl font-extrabold text-gray-900 dark:text-white mb-2 tracking-tight">NexusChat</h1>
-            <p className="text-gray-500 dark:text-gray-300 font-medium">Connect with everyone, everywhere.</p>
-          </div>
-          <form onSubmit={handleLogin} className="space-y-5">
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 ml-1">Email Address</label>
-              <input type="email" defaultValue="alex@nexus.chat" className="w-full px-5 py-4 bg-gray-50 dark:bg-dark-input border border-gray-200 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-nexus-500 focus:outline-none text-gray-800 dark:text-white transition-all shadow-inner" />
-            </div>
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 ml-1">Password</label>
-              <input type="password" defaultValue="password" className="w-full px-5 py-4 bg-gray-50 dark:bg-dark-input border border-gray-200 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-nexus-500 focus:outline-none text-gray-800 dark:text-white transition-all shadow-inner" />
-            </div>
-            <button type="submit" className="w-full bg-gradient-to-r from-nexus-600 to-nexus-500 hover:from-nexus-500 hover:to-nexus-400 text-white font-bold py-4 rounded-2xl transition-all transform active:scale-[0.98] shadow-xl shadow-nexus-500/20 text-lg">
-              Sign In
-            </button>
-            <p className="text-center text-sm text-gray-400 mt-6">Don't have an account? <span className="text-nexus-600 font-semibold cursor-pointer hover:underline">Sign up</span></p>
-          </form>
+      <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-black flex items-center justify-center p-4">
+        <div className="bg-white/10 backdrop-blur-xl border border-white/20 p-8 rounded-3xl shadow-2xl w-full max-w-md text-center">
+             <div className="mb-6 inline-block p-4 rounded-3xl bg-gradient-to-tr from-cyan-400 to-purple-500 shadow-lg shadow-purple-500/30">
+                 <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
+             </div>
+             <h1 className="text-4xl font-bold text-white mb-2 font-sans tracking-tight">NexusChat</h1>
+             <p className="text-gray-300 mb-8">Experience the future of messaging.</p>
+             <button onClick={() => setAuthState('app')} className="w-full py-4 rounded-xl bg-white text-black font-bold text-lg hover:scale-[1.02] transition shadow-xl">Enter App</button>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flex h-[100dvh] w-full overflow-hidden bg-gray-50 dark:bg-dark-bg font-sans transition-colors duration-300">
-      <div className={`${isMobileListVisible ? 'flex' : 'hidden'} md:flex flex-col h-full z-20 w-full md:w-[400px] border-r border-gray-200 dark:border-gray-700 bg-white dark:bg-dark-panel flex-shrink-0`}>
+    <div className={`flex h-[100dvh] w-screen overflow-hidden overscroll-none font-sans transition-all duration-500 ${getContainerStyles()}`}>
+      
+      {/* Mobile Sidebar Logic */}
+      <div className={`${isMobileListVisible ? 'flex' : 'hidden'} md:flex flex-col h-full z-20 w-full md:w-[380px] lg:w-[420px] flex-shrink-0 transition-all duration-300`}>
         <Sidebar 
           currentUser={currentUser}
           chats={chats}
@@ -488,7 +452,7 @@ const App: React.FC = () => {
           callLogs={MOCK_CALL_LOGS}
           activeChatId={activeChatId}
           activeTab={sidebarTab}
-          currentTheme={theme}
+          appTheme={appTheme}
           currentWallpaper={wallpaper}
           navPosition={navPosition}
           onTabChange={setSidebarTab}
@@ -497,7 +461,6 @@ const App: React.FC = () => {
           onCreateChat={handleCreateChat}
           onViewStory={setViewingStoryId}
           onStartCall={(userId, type) => handleStartCall(userId, type)}
-          onToggleTheme={() => setTheme(prev => prev === 'light' ? 'dark' : 'light')}
           onWallpaperChange={setWallpaper}
           onClearChats={handleClearChats}
           onAddStory={handleAddStory}
@@ -505,15 +468,18 @@ const App: React.FC = () => {
           onUnblockUser={handleUnblockUser}
           onToggleNavPosition={() => setNavPosition(prev => prev === 'top' ? 'bottom' : 'top')}
           onUpdateSettings={handleUpdateSettings}
+          onUpdateProfile={handleUpdateProfile}
         />
       </div>
 
+      {/* Chat Area */}
       <div className={`flex-1 flex flex-col h-full relative overflow-hidden ${!isMobileListVisible ? 'flex' : 'hidden md:flex'}`}>
         <ChatWindow 
           chat={activeChat}
           currentUser={currentUser}
           partnerTyping={partnerTyping}
           wallpaper={wallpaper}
+          appTheme={appTheme}
           onSendMessage={(text, type, mediaUrl, replyToId, pollOptions) => handleSendMessage(text, type, mediaUrl, replyToId, pollOptions)}
           onBack={() => setIsMobileListVisible(true)}
           onStartCall={(type) => handleStartCall(null, type)}
@@ -530,63 +496,34 @@ const App: React.FC = () => {
           onViewImage={setViewingImage}
           onVotePoll={handleVotePoll}
           onToggleEphemeral={handleToggleEphemeral}
+          onToggleChatLock={handleToggleChatLock}
+          onUpdateNote={handleUpdateNote}
         />
       </div>
 
-      {activeCall && (
-        <CallModal 
-          isOpen={activeCall.isOpen}
-          type={activeCall.type}
-          partner={MOCK_USERS.find(u => u.id === activeCall.partnerId) || MOCK_USERS[0]}
-          onEndCall={() => setActiveCall(null)}
-        />
-      )}
-
-      {viewingStoryId && (
-        <StoryViewer 
-          stories={stories.filter(s => s.userId === (stories.find(st => st.id === viewingStoryId)?.userId))}
-          initialStoryId={viewingStoryId}
-          users={MOCK_USERS}
-          onClose={() => setViewingStoryId(null)}
-          onReply={handleStoryReply}
-        />
-      )}
-
-      {viewingImage && (
-        <ImageViewer 
-          src={viewingImage} 
-          onClose={() => setViewingImage(null)} 
-        />
-      )}
-
+      {/* Modals */}
+      {activeCall && <CallModal isOpen={activeCall.isOpen} type={activeCall.type} partner={MOCK_USERS.find(u => u.id === activeCall.partnerId) || MOCK_USERS[0]} onEndCall={() => setActiveCall(null)} />}
+      {viewingStoryId && <StoryViewer stories={stories.filter(s => s.userId === (stories.find(st => st.id === viewingStoryId)?.userId))} initialStoryId={viewingStoryId} users={MOCK_USERS} onClose={() => setViewingStoryId(null)} onReply={handleStoryReply} />}
+      {viewingImage && <ImageViewer src={viewingImage} onClose={() => setViewingImage(null)} />}
       {forwardingMessage && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/60 backdrop-blur-sm p-4 animate-fade-in">
-            <div className="bg-white dark:bg-dark-panel rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden flex flex-col max-h-[80vh] border border-gray-200 dark:border-gray-700">
-                <div className="p-5 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-dark-hover">
-                    <h3 className="font-bold text-lg text-gray-900 dark:text-white">Forward to...</h3>
-                    <button onClick={() => setForwardingMessage(null)} className="p-2 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-full transition text-gray-500">
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                    </button>
-                </div>
-                <div className="overflow-y-auto flex-1 p-2">
-                    {chats.map(chat => {
-                        const partner = chat.participants.find(p => p.id !== currentUser.id) || chat.participants[0];
-                        return (
-                            <button 
-                                key={chat.id}
-                                onClick={() => handleForwardMessage(chat.id)}
-                                className="w-full p-3 flex items-center space-x-4 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-2xl transition group"
-                            >
-                                <img src={partner.avatar} className="w-12 h-12 rounded-full border border-gray-100 dark:border-gray-600" alt="" />
-                                <div className="text-left">
-                                    <p className="font-semibold text-gray-900 dark:text-white">{partner.name}</p>
-                                    <p className="text-sm text-gray-500 dark:text-gray-400">Tap to send</p>
-                                </div>
-                            </button>
-                        );
-                    })}
-                </div>
-            </div>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
+           <div className={`rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden flex flex-col max-h-[80vh] ${appTheme === 'pastel' ? 'bg-white' : 'bg-gray-900 border border-gray-700'}`}>
+              <div className="p-4 border-b border-gray-700 flex justify-between items-center">
+                 <h3 className={`font-bold text-lg ${appTheme === 'pastel' ? 'text-gray-900' : 'text-white'}`}>Forward to...</h3>
+                 <button onClick={() => setForwardingMessage(null)} className="p-2 rounded-full hover:bg-white/10 transition"><svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg></button>
+              </div>
+              <div className="overflow-y-auto flex-1 p-2">
+                 {chats.map(chat => {
+                    const partner = chat.participants.find(p => p.id !== currentUser.id) || chat.participants[0];
+                    return (
+                       <button key={chat.id} onClick={() => handleForwardMessage(chat.id)} className={`w-full p-3 flex items-center space-x-4 rounded-2xl transition group ${appTheme === 'pastel' ? 'hover:bg-gray-100' : 'hover:bg-white/10'}`}>
+                          <img src={partner.avatar} className="w-12 h-12 rounded-full object-cover" alt="" />
+                          <div className="text-left"><p className={`font-semibold ${appTheme === 'pastel' ? 'text-gray-900' : 'text-white'}`}>{partner.name}</p></div>
+                       </button>
+                    );
+                 })}
+              </div>
+           </div>
         </div>
       )}
     </div>
