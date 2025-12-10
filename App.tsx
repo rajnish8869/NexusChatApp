@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { ChatWindow } from './components/ChatWindow';
@@ -6,6 +5,7 @@ import { CallModal } from './components/CallModal';
 import { StoryViewer } from './components/StoryViewer';
 import { ImageViewer } from './components/ImageViewer';
 import { PinModal } from './components/PinModal';
+import { ConfirmModal } from './components/ConfirmModal';
 import { CURRENT_USER, INITIAL_CHATS, MOCK_USERS, MOCK_STORIES, MOCK_CALL_LOGS, DEFAULT_WALLPAPER } from './constants';
 import { Chat, MessageType, MessageStatus, CallType, User, Story, CallLog, Message, UserSettings, AppTheme } from './types';
 
@@ -59,6 +59,20 @@ const App: React.FC = () => {
   // Pin Modal State for locking individual chats
   const [showLockChatModal, setShowLockChatModal] = useState(false);
   const [chatIdToLock, setChatIdToLock] = useState<string | null>(null);
+
+  // Confirm Modal State
+  const [confirmModal, setConfirmModal] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    confirmLabel: 'Confirm',
+    isDestructive: false,
+    onConfirm: () => {},
+  });
+
+  const showConfirm = (title: string, message: string, onConfirm: () => void, isDestructive = false, confirmLabel = "Confirm") => {
+    setConfirmModal({ isOpen: true, title, message, onConfirm, isDestructive, confirmLabel });
+  };
 
   // Persist Chats to LocalStorage
   useEffect(() => {
@@ -327,9 +341,13 @@ const App: React.FC = () => {
   };
 
   const handleClearChats = () => {
-    if (confirm("Are you sure you want to clear all chat history?")) {
-        setChats(prev => prev.map(c => ({ ...c, messages: [], lastMessage: undefined, unreadCount: 0 })));
-    }
+    showConfirm(
+      "Clear All Chats?",
+      "This will permanently delete the message history for all conversations. This action cannot be undone.",
+      () => setChats(prev => prev.map(c => ({ ...c, messages: [], lastMessage: undefined, unreadCount: 0 }))),
+      true,
+      "Clear All"
+    );
   };
 
   const handleToggleStar = (messageId: string) => {
@@ -378,21 +396,56 @@ const App: React.FC = () => {
 
   const handleBlockUser = (userId: string) => {
       const isBlocked = currentUser.blockedUsers.includes(userId);
+      const user = MOCK_USERS.find(u => u.id === userId);
+      const name = user?.name || "this user";
+
       if (isBlocked) {
-          setCurrentUser(prev => ({ ...prev, blockedUsers: prev.blockedUsers.filter(id => id !== userId) }));
+        showConfirm(
+            "Unblock Contact?",
+            `Are you sure you want to unblock ${name}? You will be able to send messages and calls to each other.`,
+            () => {
+               setCurrentUser(prev => ({ ...prev, blockedUsers: prev.blockedUsers.filter(id => id !== userId) }));
+            },
+            false,
+            "Unblock"
+        );
       } else {
-          if (confirm("Are you sure you want to block this user?")) {
-            setCurrentUser(prev => ({ ...prev, blockedUsers: [...prev.blockedUsers, userId] }));
-            setPartnerTyping(false);
-          }
+        showConfirm(
+            "Block Contact?",
+            `Are you sure you want to block ${name}? They will not be able to send you messages or call you.`,
+            () => {
+              setCurrentUser(prev => ({ ...prev, blockedUsers: [...prev.blockedUsers, userId] }));
+              setPartnerTyping(false);
+            },
+            true,
+            "Block"
+        );
       }
   };
 
   const handleUnblockUser = (userId: string) => {
-      setCurrentUser(prev => ({ ...prev, blockedUsers: prev.blockedUsers.filter(id => id !== userId) }));
+      const user = MOCK_USERS.find(u => u.id === userId);
+      const name = user?.name || "this user";
+      showConfirm(
+          "Unblock Contact?",
+          `Are you sure you want to unblock ${name}?`,
+          () => {
+             setCurrentUser(prev => ({ ...prev, blockedUsers: prev.blockedUsers.filter(id => id !== userId) }));
+          },
+          false,
+          "Unblock"
+      );
   };
 
-  const handleReportUser = (userId: string) => { if(confirm("Report this user?")) alert("User reported."); };
+  const handleReportUser = (userId: string) => { 
+      showConfirm(
+          "Report Contact",
+          "Are you sure you want to report this user for spam or inappropriate behavior? The last 5 messages will be forwarded to NexusChat.",
+          () => alert("User reported successfully."),
+          true,
+          "Report"
+      );
+  };
 
   const handleUpdateSettings = (newSettings: Partial<UserSettings>) => {
       setCurrentUser(prev => ({ ...prev, settings: { ...prev.settings!, ...newSettings } }));
@@ -576,6 +629,18 @@ const App: React.FC = () => {
          title="Lock This Chat"
          actionLabel="Lock"
          appTheme={appTheme}
+      />
+
+      {/* Confirm Modal */}
+      <ConfirmModal
+        isOpen={confirmModal.isOpen}
+        onClose={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+        onConfirm={confirmModal.onConfirm}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        confirmLabel={confirmModal.confirmLabel}
+        isDestructive={confirmModal.isDestructive}
+        appTheme={appTheme}
       />
 
       {forwardingMessage && (
