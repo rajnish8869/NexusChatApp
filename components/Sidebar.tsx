@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
 import { User, Chat, Story, CallLog, CallStatus, CallType, UserSettings, AppTheme, ChatFolder } from '../types';
 import { WALLPAPERS } from '../constants';
@@ -555,7 +554,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                                           {/* Glass Card Layer (Front) - Slides on Hover to reveal actions */}
                                           <div 
                                               onClick={() => onSelectChat(chat.id)}
-                                              className={`relative z-10 w-full h-full p-4 rounded-2xl cursor-pointer flex items-center space-x-4 transition-transform duration-300 ease-out group-hover:-translate-x-32 backdrop-blur-md ${isActive ? getActiveCardClass() : `${appTheme === 'pastel' ? 'bg-white shadow-sm' : 'bg-white/5 border border-white/5'}`}`}
+                                              className={`relative z-10 w-full h-full p-4 rounded-3xl cursor-pointer flex items-center space-x-4 transition-transform duration-300 ease-out group-hover:-translate-x-32 backdrop-blur-md ${isActive ? getActiveCardClass() : `${appTheme === 'pastel' ? 'bg-white shadow-sm' : 'bg-white/5 border border-white/5'}`}`}
                                           >
                                               <div className="relative shrink-0">
                                                   <img src={partner.avatar} className="w-12 h-12 rounded-full object-cover shadow-sm group-hover:shadow-lg transition-all" alt="" />
