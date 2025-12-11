@@ -188,16 +188,16 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         className={`absolute -top-10 ${isMe ? 'right-0' : 'left-0'} flex items-center space-x-1 p-1.5 rounded-full shadow-xl z-50 transition-all duration-200 animate-pop-in ${appTheme === 'pastel' ? 'bg-white text-gray-600' : 'bg-gray-800 text-gray-200 border border-white/10'}`}
         onClick={(e) => e.stopPropagation()}
       >
-          <button onClick={(e) => { e.stopPropagation(); onReact(msg.id, '❤️'); }} className="hover:scale-125 transition p-1">❤️</button>
-          <button onClick={(e) => { e.stopPropagation(); onReact(msg.id, '😂'); }} className="hover:scale-125 transition p-1">😂</button>
-          <button onClick={(e) => { e.stopPropagation(); onReact(msg.id, '👍'); }} className="hover:scale-125 transition p-1">👍</button>
+          <button onClick={(e) => { e.stopPropagation(); onReact(msg.id, '❤️'); setHoveredMessageId(null); }} className="hover:scale-125 transition p-1">❤️</button>
+          <button onClick={(e) => { e.stopPropagation(); onReact(msg.id, '😂'); setHoveredMessageId(null); }} className="hover:scale-125 transition p-1">😂</button>
+          <button onClick={(e) => { e.stopPropagation(); onReact(msg.id, '👍'); setHoveredMessageId(null); }} className="hover:scale-125 transition p-1">👍</button>
           <div className="w-px h-4 bg-gray-500/30 mx-1"></div>
-          <button onClick={(e) => { e.stopPropagation(); setReplyingTo(msg); }} className="hover:text-cyan-400 p-1"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg></button>
-          <button onClick={(e) => { e.stopPropagation(); onPin(msg.id); }} className="hover:text-yellow-400 p-1"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" /></svg></button>
+          <button onClick={(e) => { e.stopPropagation(); setReplyingTo(msg); setHoveredMessageId(null); }} className="hover:text-cyan-400 p-1"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg></button>
+          <button onClick={(e) => { e.stopPropagation(); onPin(msg.id); setHoveredMessageId(null); }} className="hover:text-yellow-400 p-1"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" /></svg></button>
           {isMe && (
               <>
-                <button onClick={(e) => { e.stopPropagation(); setEditingMessageId(msg.id); setInputValue(msg.content); }} className="hover:text-green-400 p-1"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg></button>
-                <button onClick={(e) => { e.stopPropagation(); onDelete(msg.id); }} className="hover:text-red-400 p-1"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>
+                <button onClick={(e) => { e.stopPropagation(); setEditingMessageId(msg.id); setInputValue(msg.content); setHoveredMessageId(null); }} className="hover:text-green-400 p-1"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg></button>
+                <button onClick={(e) => { e.stopPropagation(); onDelete(msg.id); setHoveredMessageId(null); }} className="hover:text-red-400 p-1"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>
               </>
           )}
       </div>
